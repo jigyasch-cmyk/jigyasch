@@ -1,0 +1,744 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { LogOut, Plus, Car, Package, IndianRupee, Bell, CheckCircle2, XCircle, Clock, Upload, Navigation, MapPinOff, Wallet } from "lucide-react";
+import { toast } from "sonner";
+import api, { fileUrl, API, wsUrl } from "@/lib/api";
+import { subscribeToPush, pushSupported, pushPermission } from "@/lib/push";
+import { watchPosition, isGeoSupported, checkGeoPermission } from "@/lib/geo";
+import NotificationBell from "@/components/NotificationBell";
+import LiveTripMap from "@/components/LiveTripMap";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const VEHICLE_TYPES = ["E-Rickshaw", "Tata Ace", "Tempo", "Tractor"];
+
+export default function DriverDashboard() {
+  const nav = useNavigate();
+  const driver = JSON.parse(localStorage.getItem("avsgo_driver") || "{}");
+  const [tab, setTab] = useState("bookings");
+  const [vehicles, setVehicles] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [notifs, setNotifs] = useState([]);
+  const [commission, setCommission] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+
+  const authHeaders = { headers: { "x-role": "driver" } };
+
+  const load = async () => {
+    try {
+      const [v, b, n, c] = await Promise.all([
+        api.get("/driver/vehicles", authHeaders),
+        api.get("/driver/bookings", authHeaders),
+        api.get("/driver/notifications", authHeaders),
+        api.get("/driver/commission", authHeaders),
+      ]);
+      setVehicles(v.data);
+      setBookings(b.data);
+      setNotifs(n.data);
+      setCommission(c.data);
+    } catch (e) {
+      if (e.response?.status === 401) logout();
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 5000);
+    const token = localStorage.getItem("avsgo_driver_token");
+    let ws;
+    try {
+      if (token && driver.id) {
+        ws = new WebSocket(wsUrl("/api/ws/driver", { token }));
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (["booking_updated","trip_updated","driver_location","payment_updated","connected"].includes(msg.type)) load();
+          } catch {}
+        };
+      }
+    } catch {}
+    // WebSocket is primary; polling is a safety fallback for older proxies.
+    // Try to subscribe to push (best-effort, no prompt spam)
+    if (pushSupported() && pushPermission() === "granted" && driver.id) {
+      subscribeToPush(`driver:${driver.id}`, { role: "driver" }).catch(() => {});
+    }
+    return () => { clearInterval(t); try { ws?.close(); } catch {} };
+  }, []);
+
+  useEffect(() => {
+    if (!driver.id || !bookings.some(b => b.driver_id === driver.id && ["accepted","driver_to_pickup","trip_started"].includes(b.status))) return;
+    let last = 0;
+    const stop = watchPosition((coords) => {
+      if (Date.now() - last < 5000) return; last = Date.now();
+      api.post("/driver/location", coords, authHeaders).catch(() => {});
+    }, () => {});
+    return () => stop && stop();
+  }, [bookings.map(b => `${b.id}:${b.driver_id}:${b.status}`).join('|'), driver.id]);
+
+  const logout = () => {
+    localStorage.removeItem("avsgo_driver_token");
+    localStorage.removeItem("avsgo_driver");
+    nav("/");
+  };
+
+  const actBooking = async (id, action) => {
+    try {
+      await api.patch(`/driver/bookings/${id}`, { action }, authHeaders);
+      toast.success(`Booking ${action}ed`);
+      load();
+    } catch (e) {
+      if (e.response?.status === 409) {
+        toast.error(e.response.data?.detail || "Already accepted by another driver");
+        load();
+      } else {
+        toast.error(e.response?.data?.detail || "Action failed");
+      }
+    }
+  };
+
+  const actTrip = async (id, action) => {
+    try {
+      await api.patch(`/driver/bookings/${id}/trip`, { action }, authHeaders);
+      toast.success(action === "end" ? "Trip completed" : action === "reach_pickup" ? "Pickup reached" : "Trip started");
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || "Trip action failed"); }
+  };
+
+  const markPaymentReceived = async (id) => {
+    const method = window.prompt("Payment method: cash / upi / other", "cash") || "cash";
+    if (!["cash","upi","other"].includes(method)) return;
+    try {
+      await api.post(`/driver/bookings/${id}/payment-received`, { payment_method: method }, authHeaders);
+      toast.success("Payment marked received");
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || "Could not update payment"); }
+  };
+
+  const pending = bookings.filter((b) => b.status === "requested");
+  const active = bookings.filter((b) => ["accepted","driver_to_pickup","trip_started"].includes(b.status));
+  const past = bookings.filter((b) => ["completed", "rejected"].includes(b.status));
+
+  return (
+    <div className="mobile-shell pb-24">
+      {/* Header */}
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200 p-4 flex items-center justify-between">
+        <div>
+          <div className="text-xs uppercase tracking-wider text-emerald-700 font-semibold">Driver Panel</div>
+          <div className="font-display font-bold text-lg">Hi, {driver.name || "Driver"}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <NotificationBell role="driver" />
+          <button data-testid="driver-logout-btn" onClick={logout} className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
+            <LogOut className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <PushBanner subscriberKey={driver.id ? `driver:${driver.id}` : null} role="driver" />
+      <LocationSharingCard driverId={driver.id} />
+
+      {/* Commission summary */}
+      {commission && (
+        <div className="p-5">
+          <div className="card bg-gradient-to-br from-emerald-600 to-emerald-700 text-white border-none">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-wider text-emerald-100">Commission Due</div>
+                <div className="font-display font-bold text-3xl flex items-center mt-1">
+                  <IndianRupee className="h-6 w-6" />
+                  {commission.commission_owed}
+                </div>
+                <div className="text-xs text-emerald-100 mt-1">Pay via UPI: <span className="font-bold">{commission.upi}</span></div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-emerald-100">Trips</div>
+                <div className="font-display font-bold text-2xl">{commission.trips}</div>
+                <div className="text-xs text-emerald-100 mt-1">Earned ₹{commission.total_earnings}</div>
+              </div>
+            </div>
+            <button
+              data-testid="driver-pay-commission-btn"
+              onClick={() => setPayOpen(true)}
+              className="mt-4 w-full h-11 rounded-xl bg-white text-emerald-700 font-semibold flex items-center justify-center gap-2 hover:bg-emerald-50 transition"
+            >
+              <Wallet className="h-5 w-5" /> Pay Commission
+            </button>
+          </div>
+        </div>
+      )}
+
+      <PayCommissionDialog open={payOpen} onOpenChange={setPayOpen} owed={commission?.commission_owed || 0} onSubmitted={load} />
+
+      {/* Tabs */}
+      <div className="px-5">
+        <div className="flex gap-2 rounded-xl bg-gray-100 p-1">
+          {[
+            ["bookings", "Bookings", Package],
+            ["vehicles", "Vehicles", Car],
+            ["notifs", "Alerts", Bell],
+          ].map(([k, label, Icon]) => (
+            <button
+              key={k}
+              data-testid={`driver-tab-${k}`}
+              onClick={() => setTab(k)}
+              className={`flex-1 h-10 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 transition ${
+                tab === k ? "bg-white shadow text-emerald-700" : "text-gray-600"
+              }`}
+            >
+              <Icon className="h-4 w-4" /> {label}
+              {k === "bookings" && pending.length > 0 && (
+                <span className="ml-1 chip bg-rose-100 text-rose-700 px-1.5 py-0">{pending.length}</span>
+              )}
+              {k === "notifs" && notifs.length > 0 && (
+                <span className="ml-1 chip bg-amber-100 text-amber-700 px-1.5 py-0">{notifs.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-5 space-y-3">
+        {tab === "bookings" && (
+          <>
+            {pending.length === 0 && active.length === 0 && past.length === 0 && (
+              <Empty title="No bookings yet" subtitle="Waiting for customer requests." />
+            )}
+            {pending.length > 0 && <SectionTitle title="New Requests" />}
+            {pending.map((b) => (
+              <BookingCard key={b.id} b={b}>
+                <div className="flex gap-2 mt-3">
+                  <button data-testid={`booking-accept-${b.id}`} onClick={() => actBooking(b.id, "accept")} className="brand-btn flex-1 h-11">
+                    <CheckCircle2 className="h-5 w-5 mr-1" /> Accept
+                  </button>
+                  <button data-testid={`booking-reject-${b.id}`} onClick={() => actBooking(b.id, "reject")} className="h-11 flex-1 rounded-xl border-2 border-rose-500 text-rose-600 font-semibold hover:bg-rose-50">
+                    <XCircle className="h-5 w-5 mr-1 inline" /> Reject
+                  </button>
+                </div>
+              </BookingCard>
+            ))}
+            {active.length > 0 && <SectionTitle title="Active Trips" />}
+            {active.map((b) => (
+              <ActiveTripCard key={b.id} b={b} onTrip={actTrip} />
+            ))}
+            {past.length > 0 && <SectionTitle title="History" />}
+            {past.map((b) => (
+              <BookingCard key={b.id} b={b}>
+                {b.status === "completed" && b.payment_status !== "completed" && (
+                  <button onClick={() => markPaymentReceived(b.id)} className="brand-btn w-full mt-3">
+                    💰 Payment Received from Customer
+                  </button>
+                )}
+                {b.status === "completed" && <div className="text-xs text-gray-500 mt-2">Payment: {b.payment_status === "completed" ? `Completed (${b.payment_method || "—"})` : "Pending"}</div>}
+              </BookingCard>
+            ))}
+          </>
+        )}
+
+        {tab === "vehicles" && (
+          <>
+            <AddVehicleDialog open={addOpen} onOpenChange={setAddOpen} onAdded={load} />
+            {vehicles.length === 0 && (
+              <Empty title="No vehicles added" subtitle="Add your vehicle and submit for admin approval." />
+            )}
+            {vehicles.map((v) => (
+              <div key={v.id} className="card" data-testid={`vehicle-card-${v.id}`}>
+                <div className="flex items-start gap-3">
+                  {v.vehicle_photo_id ? (
+                    <img src={fileUrl(v.vehicle_photo_id)} className="h-16 w-16 rounded-xl object-cover" />
+                  ) : (
+                    <div className="h-16 w-16 rounded-xl bg-gray-100 flex items-center justify-center">
+                      <Car className="h-7 w-7 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <div className="font-display font-bold">{v.vehicle_type}</div>
+                      <StatusChip status={v.status} />
+                    </div>
+                    <div className="text-sm text-gray-500 mt-0.5">{v.plate_no}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">Capacity: {v.capacity}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {tab === "notifs" && (
+          <>
+            {notifs.length === 0 && <Empty title="No notifications" subtitle="Admin alerts will appear here." />}
+            {notifs.map((n) => (
+              <div key={n.id} className="card border-amber-200 bg-amber-50" data-testid={`notif-${n.id}`}>
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+                    <Bell className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm text-gray-800">{n.message}</div>
+                    <div className="mt-2 text-xs text-gray-500">Pay to UPI: <b>{n.upi}</b></div>
+                    <div className="text-[10px] text-gray-400 mt-1">{new Date(n.created_at).toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* FAB */}
+      {tab === "vehicles" && (
+        <button
+          data-testid="add-vehicle-fab"
+          onClick={() => setAddOpen(true)}
+          className="fixed bottom-6 right-6 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto sm:ml-[10rem] h-14 w-14 rounded-full bg-emerald-600 text-white shadow-lg flex items-center justify-center hover:bg-emerald-700 active:scale-95 transition"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SectionTitle({ title }) {
+  return <div className="text-xs uppercase tracking-wider text-gray-500 font-semibold px-1 pt-2">{title}</div>;
+}
+
+function PushBanner({ subscriberKey, role }) {
+  const [state, setState] = useState(pushPermission());
+  if (!subscriberKey || !pushSupported() || state === "granted") return null;
+  const enable = async () => {
+    const r = await subscribeToPush(subscriberKey, { role });
+    setState(pushPermission());
+    if (r.ok) toast.success("Push notifications enabled");
+    else if (r.reason === "denied") toast.error("Notifications blocked in browser settings");
+  };
+  return (
+    <div className="px-5 pt-4">
+      <button
+        data-testid="driver-enable-push-btn"
+        onClick={enable}
+        className="w-full flex items-center gap-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-semibold hover:bg-emerald-100"
+      >
+        <Bell className="h-5 w-5" /> Enable push notifications for new bookings
+      </button>
+    </div>
+  );
+}
+
+const LOC_KEY = "avsgo_driver_share_loc";
+
+function LocationSharingCard({ driverId }) {
+  const [enabled, setEnabled] = useState(() => localStorage.getItem(LOC_KEY) === "on");
+  const [status, setStatus] = useState("idle"); // idle | requesting | sharing | denied | error | unsupported
+  const [lastPos, setLastPos] = useState(null);
+  const [lastAt, setLastAt] = useState(null);
+  const [permState, setPermState] = useState("unknown");
+
+  useEffect(() => {
+    checkGeoPermission().then(setPermState).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!enabled || !driverId) {
+      setStatus((s) => (s === "sharing" ? "idle" : s));
+      return;
+    }
+    if (!isGeoSupported()) {
+      setStatus("unsupported");
+      return;
+    }
+    setStatus("requesting");
+    let lastPost = 0;
+    const push = async (coords) => {
+      const now = Date.now();
+      if (now - lastPost < 5000) return; // live movement: at most one GPS update every 5s
+      lastPost = now;
+      try {
+        await api.post("/driver/location", coords, { headers: { "x-role": "driver" } });
+        setLastAt(new Date().toISOString());
+      } catch (e) {
+        if (process.env.NODE_ENV !== "production") console.warn("[Loc] post failed", e);
+      }
+    };
+    const unsubscribe = watchPosition(
+      (coords) => {
+        setLastPos(coords);
+        setStatus("sharing");
+        push(coords);
+      },
+      (err) => {
+        if (err && err.code === 1) {
+          setStatus("denied");
+          setEnabled(false);
+          localStorage.setItem(LOC_KEY, "off");
+          toast.error("Location permission denied");
+        } else {
+          setStatus("error");
+        }
+      },
+    );
+    return unsubscribe;
+  }, [enabled, driverId]);
+
+  useEffect(() => {
+    localStorage.setItem(LOC_KEY, enabled ? "on" : "off");
+  }, [enabled]);
+
+  const ago = lastAt ? Math.max(1, Math.round((Date.now() - new Date(lastAt).getTime()) / 1000)) : null;
+  const rows = {
+    idle: { label: "Location off", sub: "Turn on so customers nearby get matched with you", tone: "gray" },
+    requesting: { label: "Getting your location…", sub: "Please allow access", tone: "amber" },
+    sharing: { label: "Sharing location", sub: ago ? `Updated ${ago < 60 ? ago + "s" : Math.round(ago / 60) + "m"} ago` : "Live", tone: "emerald" },
+    denied: { label: "Permission denied", sub: "Enable location in your browser settings", tone: "rose" },
+    error: { label: "Location unavailable", sub: "Check GPS and try again", tone: "rose" },
+    unsupported: { label: "Not supported", sub: "Your device does not support GPS", tone: "gray" },
+  };
+  const row = rows[status] || rows.idle;
+  const toneMap = {
+    emerald: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    amber: "bg-amber-100 text-amber-800 border-amber-200",
+    rose: "bg-rose-100 text-rose-700 border-rose-200",
+    gray: "bg-gray-100 text-gray-700 border-gray-200",
+  };
+
+  return (
+    <div className="px-5 pt-4">
+      <div className={`card border ${toneMap[row.tone].split(" ").slice(-1)[0]}`} data-testid="driver-location-card">
+        <div className="flex items-center gap-3">
+          <div className={`h-11 w-11 rounded-xl flex items-center justify-center ${toneMap[row.tone]}`}>
+            {status === "sharing" ? <Navigation className="h-5 w-5" /> : <MapPinOff className="h-5 w-5" />}
+          </div>
+          <div className="flex-1">
+            <div className="font-display font-bold text-sm" data-testid="driver-location-status">{row.label}</div>
+            <div className="text-xs text-gray-500">{row.sub}</div>
+            {lastPos && status === "sharing" && (
+              <div className="text-[10px] text-gray-400 mt-0.5" data-testid="driver-location-coords">
+                {lastPos.lat.toFixed(4)}, {lastPos.lng.toFixed(4)}
+                {lastPos.accuracy ? ` • ±${Math.round(lastPos.accuracy)}m` : ""}
+              </div>
+            )}
+          </div>
+          <button
+            data-testid="driver-location-toggle"
+            onClick={async () => { const next = !enabled; setEnabled(next); try { await api.patch("/driver/online", { available: next }, authHeaders); } catch (e) { setEnabled(!next); toast.error(e.response?.data?.detail || "Unable to change online status"); } }}
+            className={`h-9 px-3 rounded-lg text-xs font-semibold transition ${
+              enabled ? "bg-gray-800 text-white hover:bg-gray-900" : "bg-emerald-600 text-white hover:bg-emerald-700"
+            }`}
+          >
+            {enabled ? "Stop" : "Share"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Empty({ title, subtitle }) {
+  return (
+    <div className="card text-center py-8">
+      <div className="mx-auto h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center">
+        <Package className="h-6 w-6 text-gray-400" />
+      </div>
+      <div className="mt-3 font-semibold">{title}</div>
+      <div className="text-sm text-gray-500">{subtitle}</div>
+    </div>
+  );
+}
+
+function StatusChip({ status }) {
+  const map = {
+    pending: "bg-amber-100 text-amber-800",
+    approved: "bg-emerald-100 text-emerald-800",
+    rejected: "bg-rose-100 text-rose-700",
+    requested: "bg-amber-100 text-amber-800",
+    accepted: "bg-emerald-100 text-emerald-800",
+    driver_to_pickup: "bg-amber-100 text-amber-800",
+    trip_started: "bg-blue-100 text-blue-700",
+    expired: "bg-gray-100 text-gray-700",
+    completed: "bg-blue-100 text-blue-700",
+  };
+  return <span className={`chip ${map[status] || "bg-gray-100 text-gray-700"}`}>{status}</span>;
+}
+
+function BookingCard({ b, children }) {
+  const [remaining, setRemaining] = useState(() => b.request_expires_at ? Math.max(0, Math.ceil((new Date(b.request_expires_at).getTime()-Date.now())/1000)) : null);
+  useEffect(() => { if (b.status !== "requested" || !b.request_expires_at) return; const t=setInterval(()=>setRemaining(Math.max(0,Math.ceil((new Date(b.request_expires_at).getTime()-Date.now())/1000))),250); return()=>clearInterval(t); },[b.status,b.request_expires_at]);
+  return (
+    <div className="card" data-testid={`booking-card-${b.id}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-display font-bold">
+          {b.vehicle_type}{b.plate_no ? ` • ${b.plate_no}` : ""}
+        </div>
+        <div className="flex items-center gap-1.5">
+          {b.is_broadcast && (
+            <span data-testid={`broadcast-chip-${b.id}`} className="chip bg-indigo-100 text-indigo-700">
+              Broadcast
+            </span>
+          )}
+          <StatusChip status={b.status} />
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+        <div><span className="text-gray-500">From:</span> <b>{b.pickup}</b></div>
+        <div><span className="text-gray-500">To:</span> <b>{b.drop_location}</b></div>
+        <div><span className="text-gray-500">Distance:</span> <b>{b.distance_km} km</b></div>
+        <div><span className="text-gray-500">Fare:</span> <b className="text-emerald-700">₹{b.fare}</b></div>
+      </div>
+      <div className="mt-1 text-xs text-gray-500">Customer: {b.customer_name} • {b.customer_mobile}</div>
+      {b.status === "requested" && b.request_expires_at && <div className={`mt-2 text-sm font-bold ${remaining > 10 ? "text-amber-700" : "text-rose-700"}`}>⏱️ Accept within {remaining}s</div>}
+      <div className="mt-1 text-xs text-gray-400">
+        Commission: ₹{b.commission}
+        {b.is_broadcast && b.broadcast_count ? ` • Broadcast to ${b.broadcast_count} drivers — first to accept wins` : ""}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ActiveTripCard({ b, onTrip }) {
+  const [state, setState] = useState(null); const [geometry,setGeometry]=useState(null);
+  useEffect(()=>{ let dead=false; const load=async()=>{ try { const r=await api.get(`/driver/bookings/${b.id}/trip`,{headers:{"x-role":"driver"}}); if(!dead) setState(r.data); } catch{} }; load(); const t=setInterval(load,2000); return()=>{dead=true;clearInterval(t)}; },[b.id]);
+  const stage=state?.trip_stage || b.trip_stage || (b.status === "trip_started" ? "in_trip" : "driver_to_pickup");
+  const pickup=state?.pickup?.lat!=null ? {lat:state.pickup.lat,lng:state.pickup.lng} : (b.pickup_lat!=null ? {lat:b.pickup_lat,lng:b.pickup_lng}:null);
+  const drop=state?.drop?.lat!=null ? {lat:state.drop.lat,lng:state.drop.lng} : (b.drop_lat!=null ? {lat:b.drop_lat,lng:b.drop_lng}:null);
+  const customer=state?.customer_location || null;
+  const driver=state?.driver_location || null;
+  useEffect(()=>{ const from=stage==="in_trip"?pickup:driver; const to=stage==="in_trip"?drop:customer||pickup; if(!from||!to)return; api.post('/route',{pickup_lat:from.lat,pickup_lng:from.lng,drop_lat:to.lat,drop_lng:to.lng,vehicle_type:b.vehicle_type}).then(r=>setGeometry(r.data.geometry)).catch(()=>{}); },[stage,driver?.lat,driver?.lng,customer?.lat,customer?.lng,pickup?.lat,drop?.lat]);
+  return <BookingCard b={b}><div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm">Customer: <b>{b.customer_name}</b> — <a href={`tel:${b.customer_mobile}`} className="text-emerald-700 font-bold">{b.customer_mobile}</a></div><LiveTripMap pickup={pickup} drop={drop} driverLocation={driver} customerLocation={customer} geometry={geometry} stage={stage}/>{stage !== "in_trip" && <button onClick={()=>onTrip(b.id,"reach_pickup")} className="brand-btn w-full mt-3">🟢 Mark Reached Pickup</button>}{stage !== "in_trip" && <div className="text-xs text-gray-500 mt-2 text-center">Customer will press Start Trip after you arrive.</div>}{stage === "in_trip" && <button onClick={()=>onTrip(b.id,"end")} className="brand-btn w-full mt-3">⏹️ End Trip</button>}</BookingCard>;
+}
+
+function AddVehicleDialog({ open, onOpenChange, onAdded }) {
+  const [form, setForm] = useState({ vehicle_type: "", plate_no: "", capacity: "", rc_photo_id: null, vehicle_photo_id: null });
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState({ rc: false, vehicle: false });
+
+  const upload = async (file, key) => {
+    setUploading((u) => ({ ...u, [key]: true }));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await api.post("/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setForm((f) => ({ ...f, [key === "rc" ? "rc_photo_id" : "vehicle_photo_id"]: r.data.id }));
+      toast.success("Uploaded");
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Upload failed");
+    } finally {
+      setUploading((u) => ({ ...u, [key]: false }));
+    }
+  };
+
+  const submit = async () => {
+    if (!form.vehicle_type || !form.plate_no || !form.capacity) return toast.error("Fill all fields");
+    setLoading(true);
+    try {
+      await api.post("/driver/vehicles", form, { headers: { "x-role": "driver" } });
+      toast.success("Vehicle submitted for approval");
+      setForm({ vehicle_type: "", plate_no: "", capacity: "", rc_photo_id: null, vehicle_photo_id: null });
+      onOpenChange(false);
+      onAdded();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md rounded-2xl">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl">Add vehicle</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Select value={form.vehicle_type} onValueChange={(v) => setForm({ ...form, vehicle_type: v })}>
+            <SelectTrigger data-testid="add-vehicle-type" className="h-12 rounded-xl">
+              <SelectValue placeholder="Vehicle type" />
+            </SelectTrigger>
+            <SelectContent>
+              {VEHICLE_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <input data-testid="add-vehicle-plate" className="field" placeholder="Plate number (e.g. AS01AB1234)"
+            value={form.plate_no} onChange={(e) => setForm({ ...form, plate_no: e.target.value.toUpperCase() })} />
+          <input data-testid="add-vehicle-capacity" className="field" placeholder="Capacity (e.g. 750 kg)"
+            value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} />
+
+          <UploadField label="Vehicle photo" fileId={form.vehicle_photo_id}
+            onFile={(f) => upload(f, "vehicle")} uploading={uploading.vehicle} testid="upload-vehicle-photo" />
+          <UploadField label="RC photo" fileId={form.rc_photo_id}
+            onFile={(f) => upload(f, "rc")} uploading={uploading.rc} testid="upload-rc-photo" />
+
+          <button data-testid="add-vehicle-submit" className="brand-btn w-full mt-2" onClick={submit} disabled={loading}>
+            {loading ? "Submitting…" : "Submit for approval"}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UploadField({ label, fileId, onFile, uploading, testid }) {
+  return (
+    <label className="flex items-center gap-3 p-3 rounded-xl border-2 border-dashed border-gray-300 hover:border-emerald-500 cursor-pointer">
+      {fileId ? (
+        <img src={fileUrl(fileId)} className="h-14 w-14 rounded-lg object-cover" />
+      ) : (
+        <div className="h-14 w-14 rounded-lg bg-gray-100 flex items-center justify-center">
+          <Upload className="h-6 w-6 text-gray-400" />
+        </div>
+      )}
+      <div className="flex-1">
+        <div className="font-semibold text-sm">{label}</div>
+        <div className="text-xs text-gray-500">{uploading ? "Uploading…" : fileId ? "Uploaded ✓" : "Tap to upload (jpg/png, max 5MB)"}</div>
+      </div>
+      <input
+        data-testid={testid}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+      />
+    </label>
+  );
+}
+
+function PayCommissionDialog({ open, onOpenChange, owed, onSubmitted }) {
+  const [upi, setUpi] = useState({ upi: "", qr_url: "" });
+  const [amount, setAmount] = useState("");
+  const [utr, setUtr] = useState("");
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    api.get("/upi").then((r) => setUpi(r.data)).catch(() => {});
+    api
+      .get("/driver/commission-payments", { headers: { "x-role": "driver" } })
+      .then((r) => setHistory(r.data))
+      .catch(() => {});
+    setAmount(String(owed || ""));
+    setUtr("");
+  }, [open, owed]);
+
+  const copyUpi = async () => {
+    try {
+      await navigator.clipboard.writeText(upi.upi);
+      toast.success("UPI copied");
+    } catch (_) {}
+  };
+
+  const submit = async () => {
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) return toast.error("Enter a valid amount");
+    if (!utr.trim() || utr.trim().length < 6)
+      return toast.error("Enter a valid UTR / Transaction ID");
+    setLoading(true);
+    try {
+      await api.post(
+        "/driver/commission-payments",
+        { amount: amt, utr: utr.trim() },
+        { headers: { "x-role": "driver" } },
+      );
+      toast.success("Submitted — pending admin verification");
+      onOpenChange(false);
+      onSubmitted?.();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Submit failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md rounded-2xl" data-testid="pay-commission-dialog">
+        <DialogHeader>
+          <DialogTitle className="font-display text-xl">Pay Commission</DialogTitle>
+          <DialogDescription>
+            Scan the QR or send to the admin UPI, then submit the amount and UTR / Transaction ID.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-gray-200 p-3 bg-white flex items-center gap-3">
+            <img
+              src={upi.qr_url ? `${window.location.origin}${upi.qr_url}` : "/upi-qr.jpeg"}
+              alt="Admin UPI QR"
+              className="h-32 w-32 rounded-xl object-contain bg-white border"
+              data-testid="pay-commission-qr"
+            />
+            <div className="flex-1">
+              <div className="text-xs uppercase tracking-wider text-gray-500">Admin UPI</div>
+              <button
+                data-testid="pay-commission-upi"
+                onClick={copyUpi}
+                className="mt-1 font-display font-bold text-emerald-700 text-lg break-all hover:underline"
+              >
+                {upi.upi || "…"}
+              </button>
+              <div className="text-xs text-gray-500 mt-2">Scan &amp; Pay, then submit below.</div>
+            </div>
+          </div>
+
+          <label className="block">
+            <div className="text-xs text-gray-500 mb-1">Amount paid (₹)</div>
+            <input
+              data-testid="pay-commission-amount"
+              className="field"
+              type="number"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="e.g. 50"
+            />
+          </label>
+          <label className="block">
+            <div className="text-xs text-gray-500 mb-1">UTR / Transaction ID</div>
+            <input
+              data-testid="pay-commission-utr"
+              className="field"
+              value={utr}
+              onChange={(e) => setUtr(e.target.value)}
+              placeholder="From your UPI app"
+            />
+          </label>
+
+          {history.length > 0 && (
+            <div className="mt-2">
+              <div className="text-xs uppercase tracking-wider text-gray-500 mb-1">Recent</div>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {history.slice(0, 5).map((h) => (
+                  <div key={h.id} className="text-xs flex justify-between items-center px-2 py-1.5 rounded-lg bg-gray-50">
+                    <span>₹{h.amount} • {h.utr}</span>
+                    <span className={`chip ${h.status === "approved" ? "bg-emerald-100 text-emerald-800" : h.status === "rejected" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}>
+                      {h.status === "pending" ? "Pending Verification" : h.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <DialogFooter className="mt-4 flex gap-2">
+          <button
+            onClick={() => onOpenChange(false)}
+            className="h-11 flex-1 rounded-xl border border-gray-200 font-semibold hover:bg-gray-50"
+          >
+            Close
+          </button>
+          <button
+            data-testid="pay-commission-submit"
+            onClick={submit}
+            disabled={loading}
+            className="brand-btn flex-1 h-11"
+          >
+            {loading ? "Submitting…" : "Submit payment"}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

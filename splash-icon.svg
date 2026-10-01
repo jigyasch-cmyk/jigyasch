@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="120" fill="#16A34A"/>
+  <path d="M256 90 L400 160 V320 L256 390 L112 320 V160 Z" fill="none" stroke="#ffffff" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M112 160 L256 230 L400 160" stroke="#ffffff" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M256 230 V390" stroke="#ffffff" stroke-width="18" stroke-linejoin="round"/>
+  <path d="M184 128 L328 198" stroke="#ffffff" stroke-width="18" stroke-linejoin="round" stroke-opacity="0.5"/>
+  <text x="256" y="470" text-anchor="middle" fill="#ffffff" font-family="Outfit, Manrope, Arial, sans-serif" font-weight="800" font-size="72" letter-spacing="1">AvSGo</text>
+</svg>
