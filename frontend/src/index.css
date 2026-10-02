@@ -1,0 +1,73 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #fafafa;
+  color: #1c1917;
+}
+
+h1, h2, h3, .font-display {
+  font-family: "Outfit", "Manrope", sans-serif;
+  letter-spacing: -0.02em;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 20 14% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 14% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14% 10%;
+    --primary: 142 71% 37%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 60 5% 96%;
+    --secondary-foreground: 20 14% 10%;
+    --muted: 60 5% 96%;
+    --muted-foreground: 25 5% 35%;
+    --accent: 142 76% 92%;
+    --accent-foreground: 142 71% 22%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 142 71% 37%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
+}
+
+/* Utility */
+.brand-btn {
+  @apply inline-flex items-center justify-center h-12 px-6 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition;
+}
+.brand-btn-outline {
+  @apply inline-flex items-center justify-center h-12 px-6 rounded-xl font-semibold text-emerald-700 border-2 border-emerald-600 hover:bg-emerald-50 active:scale-[0.98] transition;
+}
+.field {
+  @apply h-12 w-full px-4 rounded-xl border border-gray-200 bg-white text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent;
+}
+.card {
+  @apply bg-white rounded-2xl border border-gray-200 shadow-sm p-5;
+}
+.mobile-shell {
+  @apply max-w-md w-full mx-auto min-h-screen bg-white sm:my-0 sm:shadow-none;
+}
+.chip {
+  @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider;
+}
+
+@layer base {
+  [data-debug-wrapper="true"] { display: contents !important; }
+}

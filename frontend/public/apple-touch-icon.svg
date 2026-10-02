@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none">
+  <rect width="180" height="180" rx="42" fill="#16A34A"/>
+  <path d="M90 26 L142 54 V108 L90 136 L38 108 V54 Z" fill="none" stroke="#ffffff" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M38 54 L90 82 L142 54" stroke="#ffffff" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M90 82 V136" stroke="#ffffff" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M64 40 L116 68" stroke="#ffffff" stroke-width="8" stroke-linejoin="round" stroke-opacity="0.55"/>
+  <text x="90" y="164" text-anchor="middle" fill="#ffffff" font-family="Outfit, Manrope, Arial, sans-serif" font-weight="800" font-size="24" letter-spacing="0.5">AvSGo</text>
+</svg>

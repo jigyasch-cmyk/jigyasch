@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/login
+Disallow: /driver
+Disallow: /driver/login
+Disallow: /api/
+
+Sitemap: https://book-ride-now-10.emergent.host/sitemap.xml

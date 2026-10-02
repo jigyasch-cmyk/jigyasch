@@ -1,0 +1,12 @@
+{
+  "appId": "com.avsgo.app",
+  "appName": "AvSGo",
+  "webDir": "build",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
