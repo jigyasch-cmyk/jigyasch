@@ -927,6 +927,18 @@ async def manager_drop_places(manager=Depends(require_manager)):
         q['$or'] = [{'pickup_pin': {'$in': pins}}, {'pickup_pin': None}]
     cur = db.drop_places.find(q, {'_id': 0}).sort('place_name', 1)
     return await cur.to_list(10000)
+class DropPlaceCreate(BaseModel):
+    place_name: str
+    latitude: float
+    longitude: float
+    pickup_pin: Optional[str] = None
+    enabled: bool = True
+
+
+class DropPlaceAction(BaseModel):
+    enabled: Optional[bool] = None
+    place_name: Optional[str] = None
+    
 
 
 @api_router.post("/manager/drop-places")
@@ -2897,18 +2909,6 @@ class ReviewPaymentIn(BaseModel):
     action: Literal['approve', 'reject']
     note: Optional[str] = None
 
-
-class DropPlaceCreate(BaseModel):
-    place_name: str
-    latitude: float
-    longitude: float
-    pickup_pin: Optional[str] = None
-    enabled: bool = True
-
-
-class DropPlaceAction(BaseModel):
-    enabled: Optional[bool] = None
-    place_name: Optional[str] = None
 
 
 class PaymentSettingsIn(BaseModel):
