@@ -33,11 +33,11 @@ jobs:
        
       - name: Add Capacitor Android
         working-directory: frontend
-        run: npx cap add android
+        run: npx --yes @capacitor/cli@7.4.3 add android
 
       - name: Sync Capacitor
         working-directory: frontend
-        run: npx cap sync android
+        run: npx --yes @capacitor/cli@7.4.3 sync android
 
       - name: Install Java 17
         run: |
