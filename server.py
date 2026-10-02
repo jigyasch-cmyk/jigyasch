@@ -45,6 +45,7 @@ ROAD_FACTOR = 1.35  # Haversine → road distance multiplier when no routing API
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+background_tasks: list[asyncio.Task] = []
 
 
 # ---------------- Realtime WebSocket ----------------
