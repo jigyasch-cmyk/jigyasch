@@ -11,13 +11,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
+      - name: Setup Java 17
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jdk
+          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> "$GITHUB_ENV"
+          echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> "$GITHUB_PATH"
+          java -version
 
       - name: Create Android Project
         shell: bash
@@ -108,9 +111,11 @@ jobs:
               android:height="108dp"
               android:viewportWidth="108"
               android:viewportHeight="108">
+
               <path
                   android:fillColor="#16A34A"
                   android:pathData="M54,8A46,46 0,1 0,54 100A46,46 0,1 0,54 8"/>
+
               <path
                   android:fillColor="#FFFFFF"
                   android:pathData="M30,62 L43,34 L58,34 L76,62 L69,62 L64,54 L43,54 L39,62 Z"/>
@@ -252,11 +257,11 @@ jobs:
 
                       Uri[] result = null;
 
-                      if (resultCode == RESULT_OK && data != null) {
+                      if (resultCode == RESULT_OK &&
+                          data != null &&
+                          data.getData() != null) {
 
-                          if (data.getData() != null) {
-                              result = new Uri[]{data.getData()};
-                          }
+                          result = new Uri[]{data.getData()};
                       }
 
                       fileCallback.onReceiveValue(result);
@@ -276,10 +281,13 @@ jobs:
           }
           EOF
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.9"
+      - name: Install Gradle 8.9
+        shell: bash
+        run: |
+          curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-8.9/bin" >> "$GITHUB_PATH"
+          gradle --version
 
       - name: Build APK and AAB
         working-directory: android-app
@@ -287,13 +295,13 @@ jobs:
           gradle --no-daemon assembleDebug bundleRelease
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: AvSGo-APK
           path: android-app/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload AAB
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: AvSGo-AAB
           path: android-app/app/build/outputs/bundle/release/app-release.aab
