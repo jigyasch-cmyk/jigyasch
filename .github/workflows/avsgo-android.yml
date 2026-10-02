@@ -39,12 +39,12 @@ jobs:
         working-directory: frontend
         run: npx --yes @capacitor/cli@7.4.3 sync android
 
-      - name: Install Java 17
+      - name: Install Java 21
         run: |
           sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk
-          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
-          echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> $GITHUB_PATH
+          sudo apt-get install -y openjdk-21-jdk
+          echo "JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64" >> $GITHUB_ENV
+          echo "/usr/lib/jvm/java-21-openjdk-amd64/bin" >> $GITHUB_PATH
 
       - name: Build APK
         working-directory: frontend/android
