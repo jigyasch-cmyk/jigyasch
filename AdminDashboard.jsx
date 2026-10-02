@@ -670,5 +670,642 @@ function PaymentsView({ payments, onReview }) {
   );
 }
 
-\n\nfunction ServiceAreasView(){\n  const [rows,setRows]=useState([]),[f,setF]=useState({pickup_pin:"",area_name:"",latitude:"",longitude:"",enabled:true});\n  const hdrs={headers:{"x-role":"admin"}};\n  const load=async()=>{try{setRows((await api.get("/admin/service-areas",hdrs)).data)}catch(e){toast.error(e.response?.data?.detail||"Failed to load service areas")}};\n  useEffect(()=>{load()},[]);\n  const add=async()=>{if(!/^\\d{6}$/.test(f.pickup_pin)||!f.area_name.trim())return toast.error("Enter 6-digit Pickup PIN and area name");try{await api.post("/admin/service-areas",{...f,latitude:f.latitude?Number(f.latitude):null,longitude:f.longitude?Number(f.longitude):null},hdrs);toast.success("Service area saved");setF({pickup_pin:"",area_name:"",latitude:"",longitude:"",enabled:true});load()}catch(e){toast.error(e.response?.data?.detail||"Save failed")}};\n  const toggle=async r=>{try{await api.patch(`/admin/service-areas/${r.id}`,{enabled:!r.enabled},hdrs);load()}catch(e){toast.error(e.response?.data?.detail||"Update failed")}};\n  const edit=async r=>{const name=window.prompt("Area name",r.area_name);if(!name||name===r.area_name)return;try{await api.patch(`/admin/service-areas/${r.id}`,{area_name:name},hdrs);load()}catch(e){toast.error(e.response?.data?.detail||"Update failed")}};\n  return <div className="space-y-4"><div><h1 className="font-display text-3xl font-bold">Service Areas</h1><p className="text-gray-500 text-sm">Pickup PIN controls customer service eligibility and manager assignment.</p></div><div className="card grid md:grid-cols-5 gap-2"><input className="field" placeholder="Pickup PIN" maxLength="6" value={f.pickup_pin} onChange={e=>setF({...f,pickup_pin:e.target.value.replace(/\\D/g,"").slice(0,6)})}/><input className="field" placeholder="Area Name" value={f.area_name} onChange={e=>setF({...f,area_name:e.target.value})}/><input className="field" placeholder="Latitude" value={f.latitude} onChange={e=>setF({...f,latitude:e.target.value})}/><input className="field" placeholder="Longitude" value={f.longitude} onChange={e=>setF({...f,longitude:e.target.value})}/><button className="brand-btn" onClick={add}>Add / Save PIN</button></div><div className="card overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left text-gray-500"><th className="py-2">PIN</th><th>Area</th><th>Coordinates</th><th>Status</th><th>Action</th></tr></thead><tbody>{rows.map(r=><tr key={r.id} className="border-t"><td className="py-3 font-semibold">{r.pickup_pin}</td><td>{r.area_name}</td><td>{r.latitude ?? "—"}, {r.longitude ?? "—"}</td><td>{r.enabled?"Enabled":"Disabled"}</td><td className="flex gap-2 py-2"><button className="h-9 px-3 rounded-lg bg-gray-100" onClick={()=>edit(r)}>Edit</button><button className="h-9 px-3 rounded-lg bg-gray-100" onClick={()=>toggle(r)}>{r.enabled?"Disable":"Enable"}</button></td></tr>)}</tbody></table>{!rows.length&&<div className="text-gray-500 py-4">No service areas yet.</div>}</div></div>\n}\n\nfunction AdminDropPlacesView(){\n  const [rows,setRows]=useState([]),[f,setF]=useState({place_name:"",latitude:"",longitude:"",pickup_pin:"",enabled:true});\n  const hdrs={headers:{"x-role":"admin"}};\n  const load=async()=>{try{setRows((await api.get("/admin/drop-places",hdrs)).data)}catch(e){toast.error(e.response?.data?.detail||"Failed to load drop places")}};\n  useEffect(()=>{load()},[]);\n  const add=async()=>{if(!f.place_name.trim())return toast.error("Place name is required");try{await api.post("/admin/drop-places",{...f,latitude:Number(f.latitude),longitude:Number(f.longitude),pickup_pin:f.pickup_pin||null},hdrs);toast.success("Drop Place added");setF({place_name:"",latitude:"",longitude:"",pickup_pin:"",enabled:true});load()}catch(e){toast.error(e.response?.data?.detail||"Save failed")}};\n  const toggle=async r=>{try{await api.patch(`/admin/drop-places/${r.id}`,{enabled:!r.enabled},hdrs);load()}catch(e){toast.error(e.response?.data?.detail||"Update failed")}};\n  const edit=async r=>{const name=window.prompt("Place name",r.place_name);if(!name||name===r.place_name)return;try{await api.patch(`/admin/drop-places/${r.id}`,{place_name:name},hdrs);load()}catch(e){toast.error(e.response?.data?.detail||"Update failed")}};\n  return <div className="space-y-4"><div><h1 className="font-display text-3xl font-bold">Drop Places</h1><p className="text-gray-500 text-sm">Unlimited common drop places. Drop PIN restriction is not used.</p></div><div className="card grid md:grid-cols-5 gap-2"><input className="field" placeholder="Place name" value={f.place_name} onChange={e=>setF({...f,place_name:e.target.value})}/><input className="field" placeholder="Latitude" value={f.latitude} onChange={e=>setF({...f,latitude:e.target.value})}/><input className="field" placeholder="Longitude" value={f.longitude} onChange={e=>setF({...f,longitude:e.target.value})}/><input className="field" placeholder="Pickup PIN (optional)" maxLength="6" value={f.pickup_pin} onChange={e=>setF({...f,pickup_pin:e.target.value.replace(/\\D/g,"").slice(0,6)})}/><button className="brand-btn" onClick={add}>Add Place</button></div><div className="card space-y-2">{rows.map(r=><div key={r.id} className="border rounded-xl p-3 flex items-center justify-between gap-3"><div><b>{r.place_name}</b><div className="text-xs text-gray-500">{r.enabled?"Enabled":"Disabled"} • {r.pickup_pin||"No PIN restriction"} • {r.added_by_type||"admin"}</div></div><div className="flex gap-2"><button className="h-9 px-3 rounded-lg bg-gray-100" onClick={()=>edit(r)}>Edit</button><button className="h-9 px-3 rounded-lg bg-gray-100" onClick={()=>toggle(r)}>{r.enabled?"Disable":"Enable"}</button></div></div>)}{!rows.length&&<div className="text-gray-500 py-4">No Drop Places yet.</div>}</div></div>\n}\n\nfunction ManagerPayoutsView(){\n  const [rows,setRows]=useState([]),[managers,setManagers]=useState([]),[f,setF]=useState({manager_id:"",amount:"",receipt_file_id:"",note:""}),[managerPayment,setManagerPayment]=useState(null),[managerSummary,setManagerSummary]=useState(null);\n  const hdrs={headers:{"x-role":"admin"}};\n  const load=async()=>{try{const [p,m]=await Promise.all([api.get("/admin/manager-payouts",hdrs),api.get("/admin/managers",hdrs)]);setRows(p.data);setManagers(m.data)}catch(e){toast.error(e.response?.data?.detail||"Failed to load payouts")}};\n  useEffect(()=>{load()},[]);\n  const selectManager=async(id)=>{setF(x=>({...x,manager_id:id}));if(!id){setManagerPayment(null);setManagerSummary(null);return;}try{const [ps,sm]=await Promise.all([api.get(`/admin/manager-payment-settings/${id}`,hdrs),api.get(`/admin/managers/${id}/commission-summary`,hdrs)]);setManagerPayment(ps.data);setManagerSummary(sm.data)}catch(e){setManagerPayment(null);toast.error(e.response?.data?.detail||"Could not load manager UPI/QR")}};
-  const pay=async()=>{if(!f.manager_id||Number(f.amount)<=0)return toast.error("Select manager and enter amount");try{await api.post("/admin/manager-payouts",{manager_id:f.manager_id,amount:Number(f.amount),receipt_file_id:f.receipt_file_id||null,note:f.note||null},hdrs);toast.success("Manager payment recorded");setF({manager_id:"",amount:"",receipt_file_id:"",note:""});load()}catch(e){toast.error(e.response?.data?.detail||"Payment failed")}};\n  return <div className="space-y-4"><div><h1 className="font-display text-3xl font-bold">Manager Payouts</h1><p className="text-gray-500 text-sm">Admin pays earned manager commission and keeps the receipt/history.</p></div><div className="card grid md:grid-cols-4 gap-2"><select className="field" value={f.manager_id} onChange={e=>selectManager(e.target.value)}><option value="">Select Manager</option>{managers.filter(m=>m.active&&!m.resigned).map(m=><option key={m.id} value={m.id}>{m.name} • {m.manager_id}</option>)}</select><input className="field" type="number" min="0" step="0.01" placeholder="Amount" value={f.amount} onChange={e=>setF({...f,amount:e.target.value})}/><input className="field" placeholder="Receipt File ID (optional)" value={f.receipt_file_id} onChange={e=>setF({...f,receipt_file_id:e.target.value})}/><button className="brand-btn" onClick={pay}>Pay Manager</button><input className="field md:col-span-4" placeholder="Note" value={f.note} onChange={e=>setF({...f,note:e.target.value})}/>{managerSummary&&<div className="md:col-span-4 border rounded-xl p-3 text-sm"><b>Payable to Manager: ₹{managerSummary.remaining}</b> • Earned ₹{managerSummary.earned} • Paid ₹{managerSummary.paid}</div>}{managerPayment&&<div className="md:col-span-4 border rounded-xl p-3 text-sm"><b>{managerPayment.manager?.name}</b> • UPI: <b>{managerPayment.payment?.upi_id||"Not set"}</b>{managerPayment.payment?.qr_file_id&&<img src={fileUrl(managerPayment.payment.qr_file_id)} className="mt-2 h-32 w-32 object-contain border rounded-lg" alt="Manager QR"/>}</div>}</div><div className="card overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left text-gray-500"><th className="py-2">Manager</th><th>Amount</th><th>Status</th><th>Receipt</th><th>Date</th></tr></thead><tbody>{rows.map(r=><tr key={r.id} className="border-t"><td className="py-3">{r.manager_name}</td><td className="font-semibold">₹{r.amount}</td><td>{r.status}</td><td>{r.receipt_file_id||"—"}</td><td>{r.paid_at||r.created_at}</td></tr>)}</tbody></table>{!rows.length&&<div className="text-gray-500 py-4">No manager payouts yet.</div>}</div></div>\n}\n
+  function ServiceAreasView() {
+  const [rows, setRows] = useState([]);
+  const [f, setF] = useState({
+    pickup_pin: "",
+    area_name: "",
+    latitude: "",
+    longitude: "",
+    enabled: true,
+  });
+
+  const hdrs = { headers: { "x-role": "admin" } };
+
+  const load = async () => {
+    try {
+      setRows((await api.get("/admin/service-areas", hdrs)).data);
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail || "Failed to load service areas"
+      );
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const add = async () => {
+    if (!/^\d{6}$/.test(f.pickup_pin) || !f.area_name.trim()) {
+      return toast.error("Enter 6-digit Pickup PIN and area name");
+    }
+
+    try {
+      await api.post(
+        "/admin/service-areas",
+        {
+          ...f,
+          latitude: f.latitude ? Number(f.latitude) : null,
+          longitude: f.longitude ? Number(f.longitude) : null,
+        },
+        hdrs
+      );
+
+      toast.success("Service area saved");
+
+      setF({
+        pickup_pin: "",
+        area_name: "",
+        latitude: "",
+        longitude: "",
+        enabled: true,
+      });
+
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Save failed");
+    }
+  };
+
+  const toggle = async (r) => {
+    try {
+      await api.patch(
+        `/admin/service-areas/${r.id}`,
+        { enabled: !r.enabled },
+        hdrs
+      );
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Update failed");
+    }
+  };
+
+  const edit = async (r) => {
+    const name = window.prompt("Area name", r.area_name);
+
+    if (!name || name === r.area_name) return;
+
+    try {
+      await api.patch(
+        `/admin/service-areas/${r.id}`,
+        { area_name: name },
+        hdrs
+      );
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Update failed");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="font-display text-3xl font-bold">
+          Service Areas
+        </h1>
+
+        <p className="text-gray-500 text-sm">
+          Pickup PIN controls customer service eligibility and manager assignment.
+        </p>
+      </div>
+
+      <div className="card grid md:grid-cols-5 gap-2">
+        <input
+          className="field"
+          placeholder="Pickup PIN"
+          maxLength="6"
+          value={f.pickup_pin}
+          onChange={(e) =>
+            setF({
+              ...f,
+              pickup_pin: e.target.value.replace(/\D/g, "").slice(0, 6),
+            })
+          }
+        />
+
+        <input
+          className="field"
+          placeholder="Area Name"
+          value={f.area_name}
+          onChange={(e) =>
+            setF({ ...f, area_name: e.target.value })
+          }
+        />
+
+        <input
+          className="field"
+          placeholder="Latitude"
+          value={f.latitude}
+          onChange={(e) =>
+            setF({ ...f, latitude: e.target.value })
+          }
+        />
+
+        <input
+          className="field"
+          placeholder="Longitude"
+          value={f.longitude}
+          onChange={(e) =>
+            setF({ ...f, longitude: e.target.value })
+          }
+        />
+
+        <button className="brand-btn" onClick={add}>
+          Add / Save PIN
+        </button>
+      </div>
+
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-gray-500">
+              <th className="py-2">PIN</th>
+              <th>Area</th>
+              <th>Coordinates</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-t">
+                <td className="py-3 font-semibold">
+                  {r.pickup_pin}
+                </td>
+
+                <td>{r.area_name}</td>
+
+                <td>
+                  {r.latitude ?? "—"}, {r.longitude ?? "—"}
+                </td>
+
+                <td>
+                  {r.enabled ? "Enabled" : "Disabled"}
+                </td>
+
+                <td className="flex gap-2 py-2">
+                  <button
+                    className="h-9 px-3 rounded-lg bg-gray-100"
+                    onClick={() => edit(r)}
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    className="h-9 px-3 rounded-lg bg-gray-100"
+                    onClick={() => toggle(r)}
+                  >
+                    {r.enabled ? "Disable" : "Enable"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {!rows.length && (
+          <div className="text-gray-500 py-4">
+            No service areas yet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminDropPlacesView() {
+  const [rows, setRows] = useState([]);
+
+  const [f, setF] = useState({
+    place_name: "",
+    latitude: "",
+    longitude: "",
+    pickup_pin: "",
+    enabled: true,
+  });
+
+  const hdrs = { headers: { "x-role": "admin" } };
+
+  const load = async () => {
+    try {
+      setRows((await api.get("/admin/drop-places", hdrs)).data);
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail || "Failed to load drop places"
+      );
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const add = async () => {
+    if (!f.place_name.trim()) {
+      return toast.error("Place name is required");
+    }
+
+    try {
+      await api.post(
+        "/admin/drop-places",
+        {
+          ...f,
+          latitude: Number(f.latitude),
+          longitude: Number(f.longitude),
+          pickup_pin: f.pickup_pin || null,
+        },
+        hdrs
+      );
+
+      toast.success("Drop Place added");
+
+      setF({
+        place_name: "",
+        latitude: "",
+        longitude: "",
+        pickup_pin: "",
+        enabled: true,
+      });
+
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Save failed");
+    }
+  };
+
+  const toggle = async (r) => {
+    try {
+      await api.patch(
+        `/admin/drop-places/${r.id}`,
+        { enabled: !r.enabled },
+        hdrs
+      );
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Update failed");
+    }
+  };
+
+  const edit = async (r) => {
+    const name = window.prompt("Place name", r.place_name);
+
+    if (!name || name === r.place_name) return;
+
+    try {
+      await api.patch(
+        `/admin/drop-places/${r.id}`,
+        { place_name: name },
+        hdrs
+      );
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Update failed");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="font-display text-3xl font-bold">
+          Drop Places
+        </h1>
+
+        <p className="text-gray-500 text-sm">
+          Unlimited common drop places. Drop PIN restriction is not used.
+        </p>
+      </div>
+
+      <div className="card grid md:grid-cols-5 gap-2">
+        <input
+          className="field"
+          placeholder="Place name"
+          value={f.place_name}
+          onChange={(e) =>
+            setF({ ...f, place_name: e.target.value })
+          }
+        />
+
+        <input
+          className="field"
+          placeholder="Latitude"
+          value={f.latitude}
+          onChange={(e) =>
+            setF({ ...f, latitude: e.target.value })
+          }
+        />
+
+        <input
+          className="field"
+          placeholder="Longitude"
+          value={f.longitude}
+          onChange={(e) =>
+            setF({ ...f, longitude: e.target.value })
+          }
+        />
+
+        <input
+          className="field"
+          placeholder="Pickup PIN (optional)"
+          maxLength="6"
+          value={f.pickup_pin}
+          onChange={(e) =>
+            setF({
+              ...f,
+              pickup_pin: e.target.value
+                .replace(/\D/g, "")
+                .slice(0, 6),
+            })
+          }
+        />
+
+        <button className="brand-btn" onClick={add}>
+          Add Place
+        </button>
+      </div>
+
+      <div className="card space-y-2">
+        {rows.map((r) => (
+          <div
+            key={r.id}
+            className="border rounded-xl p-3 flex items-center justify-between gap-3"
+          >
+            <div>
+              <b>{r.place_name}</b>
+
+              <div className="text-xs text-gray-500">
+                {r.enabled ? "Enabled" : "Disabled"} •{" "}
+                {r.pickup_pin || "No PIN restriction"} •{" "}
+                {r.added_by_type || "admin"}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                className="h-9 px-3 rounded-lg bg-gray-100"
+                onClick={() => edit(r)}
+              >
+                Edit
+              </button>
+
+              <button
+                className="h-9 px-3 rounded-lg bg-gray-100"
+                onClick={() => toggle(r)}
+              >
+                {r.enabled ? "Disable" : "Enable"}
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {!rows.length && (
+          <div className="text-gray-500 py-4">
+            No Drop Places yet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ManagerPayoutsView() {
+  const [rows, setRows] = useState([]);
+  const [managers, setManagers] = useState([]);
+
+  const [f, setF] = useState({
+    manager_id: "",
+    amount: "",
+    receipt_file_id: "",
+    note: "",
+  });
+
+  const [managerPayment, setManagerPayment] = useState(null);
+  const [managerSummary, setManagerSummary] = useState(null);
+
+  const hdrs = { headers: { "x-role": "admin" } };
+
+  const load = async () => {
+    try {
+      const [p, m] = await Promise.all([
+        api.get("/admin/manager-payouts", hdrs),
+        api.get("/admin/managers", hdrs),
+      ]);
+
+      setRows(p.data);
+      setManagers(m.data);
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail || "Failed to load payouts"
+      );
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const selectManager = async (id) => {
+    setF((x) => ({ ...x, manager_id: id }));
+
+    if (!id) {
+      setManagerPayment(null);
+      setManagerSummary(null);
+      return;
+    }
+
+    try {
+      const [ps, sm] = await Promise.all([
+        api.get(`/admin/manager-payment-settings/${id}`, hdrs),
+        api.get(`/admin/managers/${id}/commission-summary`, hdrs),
+      ]);
+
+      setManagerPayment(ps.data);
+      setManagerSummary(sm.data);
+    } catch (e) {
+      setManagerPayment(null);
+      toast.error(
+        e.response?.data?.detail ||
+          "Could not load manager UPI/QR"
+      );
+    }
+  };
+
+  const pay = async () => {
+    if (!f.manager_id || Number(f.amount) <= 0) {
+      return toast.error(
+        "Select manager and enter amount"
+      );
+    }
+
+    try {
+      await api.post(
+        "/admin/manager-payouts",
+        {
+          manager_id: f.manager_id,
+          amount: Number(f.amount),
+          receipt_file_id: f.receipt_file_id || null,
+          note: f.note || null,
+        },
+        hdrs
+      );
+
+      toast.success("Manager payment recorded");
+
+      setF({
+        manager_id: "",
+        amount: "",
+        receipt_file_id: "",
+        note: "",
+      });
+
+      load();
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail || "Payment failed"
+      );
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="font-display text-3xl font-bold">
+          Manager Payouts
+        </h1>
+
+        <p className="text-gray-500 text-sm">
+          Admin pays earned manager commission and keeps the receipt/history.
+        </p>
+      </div>
+
+      <div className="card grid md:grid-cols-4 gap-2">
+        <select
+          className="field"
+          value={f.manager_id}
+          onChange={(e) => selectManager(e.target.value)}
+        >
+          <option value="">Select Manager</option>
+
+          {managers
+            .filter((m) => m.active && !m.resigned)
+            .map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} • {m.manager_id}
+              </option>
+            ))}
+        </select>
+
+        <input
+          className="field"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Amount"
+          value={f.amount}
+          onChange={(e) =>
+            setF({ ...f, amount: e.target.value })
+          }
+        />
+
+        <input
+          className="field"
+          placeholder="Receipt File ID (optional)"
+          value={f.receipt_file_id}
+          onChange={(e) =>
+            setF({
+              ...f,
+              receipt_file_id: e.target.value,
+            })
+          }
+        />
+
+        <button className="brand-btn" onClick={pay}>
+          Pay Manager
+        </button>
+
+        <input
+          className="field md:col-span-4"
+          placeholder="Note"
+          value={f.note}
+          onChange={(e) =>
+            setF({ ...f, note: e.target.value })
+          }
+        />
+
+        {managerSummary && (
+          <div className="md:col-span-4 border rounded-xl p-3 text-sm">
+            <b>
+              Payable to Manager: ₹{managerSummary.remaining}
+            </b>{" "}
+            • Earned ₹{managerSummary.earned} • Paid ₹
+            {managerSummary.paid}
+          </div>
+        )}
+
+        {managerPayment && (
+          <div className="md:col-span-4 border rounded-xl p-3 text-sm">
+            <b>{managerPayment.manager?.name}</b> • UPI:{" "}
+            <b>
+              {managerPayment.payment?.upi_id || "Not set"}
+            </b>
+
+            {managerPayment.payment?.qr_file_id && (
+              <img
+                src={fileUrl(
+                  managerPayment.payment.qr_file_id
+                )}
+                className="mt-2 h-32 w-32 object-contain border rounded-lg"
+                alt="Manager QR"
+              />
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-gray-500">
+              <th className="py-2">Manager</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Receipt</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-t">
+                <td className="py-3">
+                  {r.manager_name}
+                </td>
+
+                <td className="font-semibold">
+                  ₹{r.amount}
+                </td>
+
+                <td>{r.status}</td>
+
+                <td>
+                  {r.receipt_file_id || "—"}
+                </td>
+
+                <td>
+                  {r.paid_at || r.created_at}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {!rows.length && (
+          <div className="text-gray-500 py-4">
+            No manager payouts yet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
