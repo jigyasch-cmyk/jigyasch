@@ -29,8 +29,8 @@ jobs:
         working-directory: frontend
         env:
           REACT_APP_BACKEND_URL: https://avsgo.onrender.com
-        run: yarn build
-
+        run: CI=false yarn build
+       
       - name: Add Capacitor Android
         working-directory: frontend
         run: npx cap add android
