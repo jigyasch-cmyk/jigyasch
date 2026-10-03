@@ -1274,8 +1274,8 @@ async def manager_update_fare(vehicle_type: str, payload: ManagerFareUpdate, man
         raise HTTPException(403, 'Fare permission is OFF')
     if vehicle_type not in VEHICLE_TYPES and not await db.vehicle_categories.find_one(
          {"name": vehicle_type, "enabled": True}
-    ):
-    raise HTTPException(400, "Invalid vehicle type")  
+):
+         raise HTTPException(400, "Invalid vehicle type")  
     doc={'manager_id':manager['id'],'vehicle_type':vehicle_type,'base_fare':payload.base_fare,'per_km':payload.per_km,'commission_pct':payload.commission_pct,'updated_at':now_iso()}
     await db.manager_fare_settings.update_one({'manager_id':manager['id'],'vehicle_type':vehicle_type},{'$set':doc},upsert=True)
     return doc
