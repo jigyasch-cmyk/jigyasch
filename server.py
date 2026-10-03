@@ -1256,7 +1256,7 @@ async def admin_update_manager_fare(manager_id: str, vehicle_type: str, payload:
     if vehicle_type not in VEHICLE_TYPES and not await db.vehicle_categories.find_one(
         {"name": vehicle_type, "enabled": True}
 ):
-    raise HTTPException(400, "Invalid vehicle type")
+        raise HTTPException(400, "Invalid vehicle type")
     if not 0 <= payload.commission_pct <= 100: raise HTTPException(400, 'Commission must be between 0 and 100')
     doc={'manager_id':manager_id,'vehicle_type':vehicle_type,'base_fare':payload.base_fare,'per_km':payload.per_km,'commission_pct':payload.commission_pct,'updated_at':now_iso()}
     await db.manager_fare_settings.update_one({'manager_id':manager_id,'vehicle_type':vehicle_type},{'$set':doc},upsert=True)
