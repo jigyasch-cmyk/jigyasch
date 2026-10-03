@@ -333,6 +333,15 @@ class FareUpdate(BaseModel):
     base_fare: float
     per_km: float
     commission_pct: float
+class VehicleCategoryCreate(BaseModel):
+    name: str
+    capacity: str = ""
+    enabled: bool = True
+
+class VehicleCategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    capacity: Optional[str] = None
+    enabled: Optional[bool] = None 
 
 class ManagerFareUpdate(BaseModel):
     base_fare: float
@@ -1067,8 +1076,8 @@ async def manager_commission(manager=Depends(require_manager)):
 @api_router.post("/upload")
 async def upload(file: UploadFile = File(...)):
     ext = (file.filename or 'bin').split('.')[-1].lower()
-    if ext not in ('jpg', 'jpeg', 'png', 'webp'):
-        raise HTTPException(400, 'Only jpg/png/webp images allowed')
+    if ext not in ('jpg', 'jpeg', 'png', 'webp', 'pdf'):
+        raise HTTPException(400, 'Only jpg/png/webp/pdf files allowed') 
     file_id = str(uuid.uuid4())
     path = f"{APP_NAME}/uploads/{file_id}.{ext}"
     data = await file.read()
@@ -1156,7 +1165,61 @@ async def resolve_discount(pickup_pin: str | None):
         return 0.0, None
     d = await db.manager_discounts.find_one({'manager_id': manager['id']}, {'_id': 0})
     return max(0.0, min(100.0, float((d or {}).get('discount_pct', 0)))), manager
+    
+# ---- Vehicle Categories ----
+@api_router.get("/vehicle-categories")
+async def list_vehicle_categories():
+    cur = db.vehicle_categories.find(
+        {"enabled": True},
+        {"_id": 0}
+    ).sort("name", 1)
+    return await cur.to_list(200)
 
+
+@api_router.post("/admin/vehicle-categories")
+async def create_vehicle_category(
+    payload: VehicleCategoryCreate,
+    _=Depends(require_admin)
+):
+    name = payload.name.strip()
+
+    if not name:
+        raise HTTPException(400, "Vehicle category name is required")
+
+    existing = await db.vehicle_categories.find_one({
+        "name": {"$regex": f"^{name}$", "$options": "i"}
+    })
+
+    if existing:
+        raise HTTPException(409, "Vehicle category already exists")
+
+    category = {
+        "id": str(uuid.uuid4()),
+        "name": name,
+        "capacity": payload.capacity.strip(),
+        "enabled": payload.enabled,
+        "created_at": now_iso(),
+    }
+
+    await db.vehicle_categories.insert_one(category)
+
+    await db.fare_settings.update_one(
+        {"vehicle_type": name},
+        {
+            "$setOnInsert": {
+                "id": str(uuid.uuid4()),
+                "vehicle_type": name,
+                "base_fare": 0,
+                "per_km": 0,
+                "commission_pct": 0,
+                "updated_at": now_iso(),
+            }
+        },
+        upsert=True,
+    )
+
+    category.pop("_id", None)
+    return category
 # ---- Fare settings ----
 @api_router.get("/fare-settings")
 async def list_fares():
@@ -1166,7 +1229,9 @@ async def list_fares():
 
 @api_router.put("/admin/fare-settings/{vehicle_type}")
 async def update_fare(vehicle_type: str, payload: FareUpdate, _=Depends(require_admin)):
-    if vehicle_type not in VEHICLE_TYPES:
+    if vehicle_type not in VEHICLE_TYPES and not await db.vehicle_categories.find_one(
+        {"name": vehicle_type, "enabled": True}
+):
         raise HTTPException(400, 'Invalid vehicle type')
     await db.fare_settings.update_one(
         {'vehicle_type': vehicle_type},
@@ -1188,7 +1253,10 @@ async def admin_manager_fares(manager_id: str, _=Depends(require_admin)):
 
 @api_router.put('/admin/manager-fare-settings/{manager_id}/{vehicle_type}')
 async def admin_update_manager_fare(manager_id: str, vehicle_type: str, payload: ManagerFareUpdate, _=Depends(require_admin)):
-    if vehicle_type not in VEHICLE_TYPES: raise HTTPException(400, 'Invalid vehicle type')
+    if vehicle_type not in VEHICLE_TYPES and not await db.vehicle_categories.find_one(
+        {"name": vehicle_type, "enabled": True}
+):
+    raise HTTPException(400, "Invalid vehicle type")
     if not 0 <= payload.commission_pct <= 100: raise HTTPException(400, 'Commission must be between 0 and 100')
     doc={'manager_id':manager_id,'vehicle_type':vehicle_type,'base_fare':payload.base_fare,'per_km':payload.per_km,'commission_pct':payload.commission_pct,'updated_at':now_iso()}
     await db.manager_fare_settings.update_one({'manager_id':manager_id,'vehicle_type':vehicle_type},{'$set':doc},upsert=True)
@@ -1204,7 +1272,10 @@ async def manager_fares(manager=Depends(require_manager)):
 async def manager_update_fare(vehicle_type: str, payload: ManagerFareUpdate, manager=Depends(require_manager)):
     if not manager_can(manager, 'fares', 'manage'):
         raise HTTPException(403, 'Fare permission is OFF')
-    if vehicle_type not in VEHICLE_TYPES: raise HTTPException(400, 'Invalid vehicle type')
+    if vehicle_type not in VEHICLE_TYPES and not await db.vehicle_categories.find_one(
+         {"name": vehicle_type, "enabled": True}
+    ):
+    raise HTTPException(400, "Invalid vehicle type")  
     doc={'manager_id':manager['id'],'vehicle_type':vehicle_type,'base_fare':payload.base_fare,'per_km':payload.per_km,'commission_pct':payload.commission_pct,'updated_at':now_iso()}
     await db.manager_fare_settings.update_one({'manager_id':manager['id'],'vehicle_type':vehicle_type},{'$set':doc},upsert=True)
     return doc
