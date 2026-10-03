@@ -598,7 +598,7 @@ function UploadField({ label, fileId, onFile, uploading, testid }) {
       <input
         data-testid={testid}
         type="file"
-        accept="image/*"
+        accept="image/*, .pdf"
         className="hidden"
         onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
       />
