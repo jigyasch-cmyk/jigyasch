@@ -109,50 +109,61 @@ class BookingSocketManager:
 
 ws_manager = BookingSocketManager()
 
-# ---------------- Storage (Emergent Object Storage) ----------------
-STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
-STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
-_storage_key = None
+# ---------------- Supabase Storage ----------------
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_STORAGE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "avsgo files")
 
 
-def init_storage(force: bool = False):
-    global _storage_key
-    if _storage_key and not force:
-        return _storage_key
-    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
-    resp.raise_for_status()
-    _storage_key = resp.json()["storage_key"]
-    return _storage_key
+def _supabase_storage_url(path: str) -> str:
+    from urllib.parse import quote
+    safe_path = quote(path.lstrip("/"), safe="/")
+    return f"{SUPABASE_URL}/storage/v1/object/{quote(SUPABASE_BUCKET, safe='')}/{safe_path}"
 
 
 def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    resp = requests.put(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key, "Content-Type": content_type},
-        data=data, timeout=120,
+    if not SUPABASE_URL or not SUPABASE_STORAGE_KEY:
+        raise RuntimeError("Supabase Storage environment variables are missing")
+
+    resp = requests.post(
+        _supabase_storage_url(path),
+        headers={
+            "Authorization": f"Bearer {SUPABASE_STORAGE_KEY}",
+            "apikey": SUPABASE_STORAGE_KEY,
+            "Content-Type": content_type,
+            "x-upsert": "true",
+        },
+        data=data,
+        timeout=120,
     )
-    if resp.status_code == 404:
-        key = init_storage(force=True)
-        resp = requests.put(
-            f"{STORAGE_URL}/objects/{path}",
-            headers={"X-Storage-Key": key, "Content-Type": content_type},
-            data=data, timeout=120,
-        )
+
     resp.raise_for_status()
-    return resp.json()
+
+    try:
+        return resp.json()
+    except Exception:
+        return {"success": True}
 
 
 def get_object(path: str):
-    key = init_storage()
-    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    if resp.status_code == 404:
-        key = init_storage(force=True)
-        resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+    if not SUPABASE_URL or not SUPABASE_STORAGE_KEY:
+        raise RuntimeError("Supabase Storage environment variables are missing")
 
+    resp = requests.get(
+        _supabase_storage_url(path),
+        headers={
+            "Authorization": f"Bearer {SUPABASE_STORAGE_KEY}",
+            "apikey": SUPABASE_STORAGE_KEY,
+        },
+        timeout=60,
+    )
+
+    resp.raise_for_status()
+
+    return resp.content, resp.headers.get(
+        "Content-Type",
+        "application/octet-stream"
+    )
 
 # ---------------- VAPID / Web Push ----------------
 _vapid_priv_pem: Optional[str] = None
