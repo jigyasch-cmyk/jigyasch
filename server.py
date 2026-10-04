@@ -628,12 +628,7 @@ async def driver_presence_worker():
 # ---------------- Startup ----------------
 @app.on_event("startup")
 async def startup():
-    try:
-        init_storage()
-        logger.info("Storage initialized")
-    except Exception as e:
-        logger.error(f"Storage init failed: {e}")
-
+    
     try:
         await init_vapid()
     except Exception as e:
