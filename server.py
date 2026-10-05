@@ -502,6 +502,19 @@ async def require_driver(user=Depends(get_current)):
     if not driver.get('approved', False):
         raise HTTPException(403, 'Driver approval is pending')
     return user
+    async def require_driver_vehicle(user=Depends(get_current)):
+    if user.get('role') != 'driver':
+        raise HTTPException(403, 'Driver only')
+
+    driver = await db.drivers.find_one({
+        'id': user.get('sub'),
+        'active': True
+    })
+
+    if not driver:
+        raise HTTPException(403, 'Driver is inactive')
+
+    return user
 
 
 async def require_admin(user=Depends(get_current)):
@@ -1346,7 +1359,7 @@ async def manager_complaints(manager=Depends(require_manager)):
 
 # ---- Vehicles ----
 @api_router.post("/driver/vehicles")
-async def add_vehicle(payload: VehicleCreate, user=Depends(require_driver)):
+async def add_vehicle(payload: VehicleCreate, user=Depends(require_driver_vehicle)):
     if payload.vehicle_type not in VEHICLE_TYPES:
         raise HTTPException(400, 'Invalid vehicle type')
     doc = {
