@@ -515,7 +515,10 @@ async def require_driver_vehicle(user=Depends(get_current)):
 
     return user
 
-
+async def require_admin(user=Depends(get_current)):
+    if user.get('role') != 'admin':
+        raise HTTPException(403, 'Admin only')
+    return user
 async def require_manager(user=Depends(get_current)):
     if user.get('role') != 'manager':
         raise HTTPException(403, 'Manager only')
