@@ -505,7 +505,7 @@ async def require_driver_vehicle(user=Depends(get_current)):
     if user.get('role') != 'driver':
         raise HTTPException(403, 'Driver only')
 
-        driver = await db.drivers.find_one({
+    driver = await db.drivers.find_one({
         'id': user.get('sub'),
         'active': True
     })
@@ -513,11 +513,6 @@ async def require_driver_vehicle(user=Depends(get_current)):
     if not driver:
         raise HTTPException(403, 'Driver is inactive')
 
-    return user
-
-async def require_admin(user=Depends(get_current)):
-    if user.get('role') != 'admin':
-        raise HTTPException(403, 'Admin only')
     return user
 
 
