@@ -138,7 +138,8 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
     )
 
     resp.raise_for_status()
-   try:
+    
+    try:
         payload = resp.json()
         if isinstance(payload, dict):
             payload.setdefault("path", path)
@@ -146,8 +147,9 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
             return payload
         return {"success": True, "path": path, "size": len(data)}
     except Exception:
-        return {"success": True, "path": path, "size": len(data)} 
-
+        return {"success": True, "path": path, "size": len(data)}
+    
+    
        
 def get_object(path: str):
     if not SUPABASE_URL or not SUPABASE_STORAGE_KEY:
