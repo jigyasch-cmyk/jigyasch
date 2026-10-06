@@ -1401,6 +1401,35 @@ async def admin_vehicles(status: Optional[str] = None, _=Depends(require_admin))
     for v in vehicles:
         v['driver'] = drivers.get(v['owner_id'])
     return vehicles
+@api_router.patch("/admin/drivers/{driver_id}/approval")
+async def admin_driver_approval(
+    driver_id: str,
+    payload: VehicleAction,
+    admin=Depends(require_admin)
+):
+    driver = await db.drivers.find_one({'id': driver_id})
+
+    if not driver:
+        raise HTTPException(404, 'Driver not found')
+
+    approved = payload.action == 'approve'
+
+    await db.drivers.update_one(
+        {'id': driver_id},
+        {'$set': {
+            'approved': approved,
+            'active': approved,
+            'reviewed_by_admin': admin.get('sub'),
+            'reviewed_at': now_iso()
+        }}
+    )
+
+    return await db.drivers.find_one(
+        {'id': driver_id},
+        {'_id': 0, 'password_hash': 0}
+    )
+
+
 
 
 @api_router.patch("/admin/vehicles/{vehicle_id}")
