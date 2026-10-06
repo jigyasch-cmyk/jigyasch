@@ -24,13 +24,13 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: yarn install
-        
+
       - name: Build AvSGo frontend
         working-directory: frontend
         env:
           REACT_APP_BACKEND_URL: https://avsgo.onrender.com
         run: CI=false yarn build
-       
+
       - name: Add Capacitor Android
         working-directory: frontend
         run: npx --yes @capacitor/cli@7.4.3 add android
@@ -38,6 +38,34 @@ jobs:
       - name: Sync Capacitor
         working-directory: frontend
         run: npx --yes @capacitor/cli@7.4.3 sync android
+
+      - name: Add Android Location Permissions
+        working-directory: frontend
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+
+          permissions = [
+              '<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
+              '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />'
+          ]
+
+          for permission in permissions:
+              if permission not in text:
+                  text = text.replace(
+                      '<application',
+                      permission + '\n    <application',
+                      1
+                  )
+
+          manifest.write_text(text)
+
+          print("Android location permissions added.")
+          print(manifest.read_text())
+          PY
 
       - name: Install Java 21
         run: |
