@@ -429,7 +429,7 @@ function LocationSharingCard({ driverId }) {
           </div>
           <button
             data-testid="driver-location-toggle"
-            onClick={async () => { const next = !enabled; setEnabled(next); try { await api.patch("/driver/online", { available: next }, R); } catch (e) { setEnabled(!next); toast.error(e.response?.data?.detail || "Unable to change online status"); } }}
+            onClick={async () => { const next = !enabled; setEnabled(next); try { await api.patch("/driver/online", { available: next }, { headers: { "x-role": "driver" } } ); } catch (e) { setEnabled(!next); toast.error(e.response?.data?.detail || "Unable to change online status"); } }}
             className={`h-9 px-3 rounded-lg text-xs font-semibold transition ${
               enabled ? "bg-gray-800 text-white hover:bg-gray-900" : "bg-emerald-600 text-white hover:bg-emerald-700"
             }`}
