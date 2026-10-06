@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Geolocation } from "@capacitor/geolocation";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Plus, Car, Package, IndianRupee, Bell, CheckCircle2, XCircle, Clock, Upload, Navigation, MapPinOff, Wallet } from "lucide-react";
 import { toast } from "sonner";
@@ -422,7 +423,77 @@ function LocationSharingCard({ driverId }) {
           </div>
           <button
             data-testid="driver-location-toggle"
-            onClick={async () => { const next = !enabled; setEnabled(next); try { await api.patch("/driver/online", { available: next }, authHeaders); } catch (e) { setEnabled(!next); toast.error(e.response?.data?.detail || "Unable to change online status"); } }}
+onClick={async () => {
+  const next = !enabled;
+
+  try {
+    if (next) {
+      let permissions = await Geolocation.checkPermissions();
+
+      if (permissions.location !== "granted") {
+        permissions = await Geolocation.requestPermissions();
+      }
+
+      if (permissions.location !== "granted") {
+        setEnabled(false);
+        localStorage.setItem(LOC_KEY, "off");
+        setStatus("denied");
+        toast.error("Location permission is required");
+        return;
+      }
+
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 5000,
+      });
+
+      const coords = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+      };
+
+      await api.post("/driver/location", coords, authHeaders);
+
+      await api.patch(
+        "/driver/online",
+        { available: true },
+        authHeaders
+      );
+
+      setLastPos(coords);
+      setLastAt(new Date().toISOString());
+      setEnabled(true);
+      setStatus("sharing");
+
+      toast.success("Location sharing enabled");
+    } else {
+      await api.patch(
+        "/driver/online",
+        { available: false },
+        authHeaders
+      );
+
+      setEnabled(false);
+      setStatus("idle");
+      localStorage.setItem(LOC_KEY, "off");
+
+      toast.success("Location sharing stopped");
+    }
+  } catch (e) {
+    console.error("Location/online error:", e);
+
+    setEnabled(false);
+    localStorage.setItem(LOC_KEY, "off");
+
+    toast.error(
+      e?.response?.data?.detail ||
+      e?.message ||
+      "Unable to change online status"
+    );
+  }
+}}
             className={`h-9 px-3 rounded-lg text-xs font-semibold transition ${
               enabled ? "bg-gray-800 text-white hover:bg-gray-900" : "bg-emerald-600 text-white hover:bg-emerald-700"
             }`}
