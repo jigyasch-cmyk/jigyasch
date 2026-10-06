@@ -1,4 +1,4 @@
-import "@/App.css";
+g import "@/App.css";
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
