@@ -75,12 +75,19 @@ export default function DriverDashboard() {
     }, () => {});
     return () => stop && stop();
   }, [bookings.map(b => `${b.id}:${b.driver_id}:${b.status}`).join('|'), driver.id]);
+const logout = async () => {
+  try {
+    await api.patch(
+      "/driver/online",
+      { available: false },
+      authHeaders
+    );
+  } catch (e) {
+    // Ignore offline update error
+  }
 
-  const logout = () => {
-    localStorage.removeItem("avsgo_driver_token");
-    localStorage.removeItem("avsgo_driver");
-    nav("/");
-  };
+  nav("/");
+};
 
   const actBooking = async (id, action) => {
     try {
