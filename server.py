@@ -1386,7 +1386,11 @@ async def add_vehicle(payload: VehicleCreate, user=Depends(require_driver_vehicl
 
 @api_router.get("/driver/vehicles")
 async def my_vehicles(user=Depends(require_driver)):
-    cur = db.vehicles.find({'owner_id': user['sub']}, {'_id': 0}).sort('created_at', -1)
+    cur = db.vehicles.find(
+        {"owner_id": user["sub"],
+"status": "approved"},
+        {"_id": 0}
+    ).sort("created_at", -1)
     return await cur.to_list(200)
 
 
