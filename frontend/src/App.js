@@ -1,7 +1,7 @@
-g import "@/App.css";
-import { useEffect } from "react";
+import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
+
 import Landing from "@/pages/Landing";
 import Customer from "@/pages/Customer";
 import DriverAuth from "@/pages/DriverAuth";
@@ -12,36 +12,47 @@ import ManagerLogin from "@/pages/ManagerLogin";
 import ManagerDashboard from "@/pages/ManagerDashboard";
 
 function DriverGate({ children }) {
-  const t = localStorage.getItem("avsgo_driver_token");
-  return t ? children : <Navigate to="/driver/login" replace />;
+  const token = localStorage.getItem("avsgo_driver_token");
+
+  return token ? children : <Navigate to="/driver/register" replace />;
 }
+
 function AdminGate({ children }) {
-  const t = localStorage.getItem("avsgo_admin_token");
-  return t ? children : <Navigate to="/admin/login" replace />;
+  const token = localStorage.getItem("avsgo_admin_token");
+
+  return token ? children : <Navigate to="/admin/login" replace />;
 }
+
 function ManagerGate({ children }) {
-  const t = localStorage.getItem("avsgo_manager_token");
-  return t ? children : <Navigate to="/manager/login" replace />;
+  const token = localStorage.getItem("avsgo_manager_token");
+
+  return token ? children : <Navigate to="/manager/login" replace />;
+}
+
+function DriverEntry() {
+  const token = localStorage.getItem("avsgo_driver_token");
+
+  if (token) {
+    return <Navigate to="/driver" replace />;
+  }
+
+  return <DriverAuth />;
 }
 
 export default function App() {
-  useEffect(() => {
-    // Give the splash a beat so it feels intentional rather than a flash
-    const t = setTimeout(() => {
-      if (typeof window !== "undefined" && typeof window.__avsgoHideSplash === "function") {
-        window.__avsgoHideSplash();
-      }
-    }, 550);
-    return () => clearTimeout(t);
-  }, []);
-
   return (
     <BrowserRouter>
       <Toaster position="top-center" richColors />
+
       <Routes>
         <Route path="/" element={<Landing />} />
+
         <Route path="/customer" element={<Customer />} />
-        <Route path="/driver/register" element={<DriverAuth />} />
+
+        {/* Driver registration / saved driver entry */}
+        <Route path="/driver/register" element={<DriverEntry />} />
+
+        {/* Driver panel */}
         <Route
           path="/driver"
           element={
@@ -50,16 +61,10 @@ export default function App() {
             </DriverGate>
           }
         />
+
+        {/* Admin */}
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/manager/login" element={<ManagerLogin />} />
-        <Route
-          path="/manager"
-          element={
-            <ManagerGate>
-              <ManagerDashboard />
-            </ManagerGate>
-          }
-        />
+
         <Route
           path="/admin"
           element={
@@ -68,6 +73,19 @@ export default function App() {
             </AdminGate>
           }
         />
+
+        {/* Manager */}
+        <Route path="/manager/login" element={<ManagerLogin />} />
+
+        <Route
+          path="/manager"
+          element={
+            <ManagerGate>
+              <ManagerDashboard />
+            </ManagerGate>
+          }
+        />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
