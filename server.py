@@ -1449,8 +1449,18 @@ async def approve_vehicle(vehicle_id: str, payload: VehicleAction, _=Depends(req
     v = await db.vehicles.find_one({'id': vehicle_id})
     if not v:
         raise HTTPException(404, 'Vehicle not found')
-    new_status = 'approved' if payload.action == 'approve' else 'rejected'
-    await db.vehicles.update_one({'id': vehicle_id}, {'$set': {'status': new_status, 'reviewed_at': now_iso()}})
+    approved = payload.action == 'approve'
+new_status = 'approved' if approved else 'rejected'
+
+await db.vehicles.update_one(
+    {'id': vehicle_id},
+    {'$set': {
+        'approved': approved,
+        'status': new_status,
+        'available': approved,
+        'reviewed_at': now_iso()
+    }}
+)    
     await send_push(
         f"driver:{v['owner_id']}",
         f"Vehicle {new_status}",
