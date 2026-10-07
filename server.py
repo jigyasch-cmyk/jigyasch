@@ -1384,15 +1384,23 @@ async def add_vehicle(payload: VehicleCreate, user=Depends(require_driver_vehicl
     return doc
 
 
+        {'id': driver_id},
+        {'$set': {
+            'approved': approved 
+
 @api_router.get("/driver/vehicles")
 async def my_vehicles(user=Depends(require_driver)):
     cur = db.vehicles.find(
-        {"owner_id": user["sub"],
-"status": "approved"},
+        {
+            "$or": [
+                {"owner_id": user["sub"]},
+                {"driver_id": user["sub"]}
+            ]
+        },
         {"_id": 0}
     ).sort("created_at", -1)
-    return await cur.to_list(200)
 
+    return await cur.to_list(200)
 
 @api_router.get("/admin/vehicles")
 async def admin_vehicles(status: Optional[str] = None, _=Depends(require_admin)):
@@ -1419,9 +1427,7 @@ async def admin_driver_approval(
     approved = payload.action == 'approve'
 
     await db.drivers.update_one(
-        {'id': driver_id},
-        {'$set': {
-            'approved': approved,
+,
             'active': approved,
             'reviewed_by_admin': admin.get('sub'),
             'reviewed_at': now_iso()
