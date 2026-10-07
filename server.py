@@ -1452,15 +1452,15 @@ async def approve_vehicle(vehicle_id: str, payload: VehicleAction, _=Depends(req
     approved = payload.action == 'approve'
 new_status = 'approved' if approved else 'rejected'
 
-await db.vehicles.update_one(
-    {'id': vehicle_id},
-    {'$set': {
-        'approved': approved,
-        'status': new_status,
-        'available': approved,
-        'reviewed_at': now_iso()
-    }}
-)    
+    await db.vehicles.update_one(
+        {'id': vehicle_id},
+        {'$set': {
+            'approved': approved,
+            'status': new_status,
+            'available': approved,
+            'reviewed_at': now_iso()
+        }}
+    )    
     await send_push(
         f"driver:{v['owner_id']}",
         f"Vehicle {new_status}",
