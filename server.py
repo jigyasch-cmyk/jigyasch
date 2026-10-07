@@ -1416,6 +1416,9 @@ async def admin_driver_approval(
     payload: VehicleAction,
     admin=Depends(require_admin)
 ):
+
+
+
     driver = await db.drivers.find_one({'id': driver_id})
 
     if not driver:
@@ -1424,7 +1427,9 @@ async def admin_driver_approval(
     approved = payload.action == 'approve'
 
     await db.drivers.update_one(
-,
+        {'id': driver_id},
+        {'$set': {
+            'approved': approved,
             'active': approved,
             'reviewed_by_admin': admin.get('sub'),
             'reviewed_at': now_iso()
