@@ -1450,7 +1450,7 @@ async def approve_vehicle(vehicle_id: str, payload: VehicleAction, _=Depends(req
     if not v:
         raise HTTPException(404, 'Vehicle not found')
     approved = payload.action == 'approve'
-new_status = 'approved' if approved else 'rejected'
+    new_status = 'approved' if approved else 'rejected'
 
     await db.vehicles.update_one(
         {'id': vehicle_id},
@@ -1470,36 +1470,8 @@ new_status = 'approved' if approved else 'rejected'
     return {'id': vehicle_id, 'status': new_status}
 
 
-@api_router.patch("/admin/vehicles/{vehicle_id}")
-async def approve_vehicle(vehicle_id: str, payload: VehicleAction, _=Depends(require_admin)):
-    v = await
-db.vehicles.find_one({'id': vehicle_id})
-    if not v:
-        raise HTTPException(404, 'Vehicle not found')
 
-    approved = payload.action == 'approve'
-    new_status = 'approved' if approved else 'rejected'
-
-    await db.vehicles.update_one(
-        {'id': vehicle_id},
-        {'$set': {
-            'approved': approved,
-            'status': new_status,
-            'available': approved,
-            'reviewed_at': now_iso()
-        }}
-    )
-
-    await send_push(
-        f"driver:{v['owner_id']}",
-        f"Vehicle {new_status}",
-        f"Your {v['vehicle_type']}
-({v['plate_no']}) has been {new_status} by admin.",
-        {'url': '/driver', 'type': f'vehicle_{new_status}'},
-    )
-
-    return {'id': vehicle_id, 'status': new_status}
-
+    
 @api_router.get("/public/vehicles")
 async def public_vehicles(vehicle_type: Optional[str] = None):
     # Only approved AND available vehicles are shown to customers.
