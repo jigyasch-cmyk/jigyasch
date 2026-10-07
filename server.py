@@ -1470,25 +1470,33 @@ await db.vehicles.update_one(
     return {'id': vehicle_id, 'status': new_status}
 
 
-@api_router.patch("/admin/vehicles/{vehicle_id}/availability")
-async def set_vehicle_availability(vehicle_id: str, payload: VehicleAvailability, _=Depends(require_admin)):
+@api_router.patch("/admin/vehicles/{vehicle_id}")
+async def approve_vehicle(vehicle_id: str, payload: VehicleAction, _=Depends(require_admin)):
     v = await db.vehicles.find_one({'id': vehicle_id})
     if not v:
         raise HTTPException(404, 'Vehicle not found')
+
+    approved = payload.action == 'approve'
+    new_status = 'approved' if approved else 'rejected'
+
     await db.vehicles.update_one(
         {'id': vehicle_id},
-        {'$set': {'available': bool(payload.available), 'availability_updated_at': now_iso()}},
+        {'$set': {
+            'approved': approved,
+            'status': new_status,
+            'available': approved,
+            'reviewed_at': now_iso()
+        }}
     )
-    # Notify the driver so they know their vehicle was toggled
-    label = 'Available' if payload.available else 'Not available'
+
     await send_push(
         f"driver:{v['owner_id']}",
-        f"Vehicle marked {label}",
-        f"Admin set your {v['vehicle_type']} ({v['plate_no']}) as {label}.",
-        {'url': '/driver', 'type': 'vehicle_availability'},
+        f"Vehicle {new_status}",
+        f"Your {v['vehicle_type']} ({v['plate_no']}) has been {new_status} by admin.",
+        {'url': '/driver', 'type': f'vehicle_{new_status}'},
     )
-    return {'id': vehicle_id, 'available': bool(payload.available)}
 
+    return {'id': vehicle_id, 'status': new_status}
 
 @api_router.get("/public/vehicles")
 async def public_vehicles(vehicle_type: Optional[str] = None):
