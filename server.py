@@ -499,8 +499,6 @@ async def require_driver(user=Depends(get_current)):
     driver = await db.drivers.find_one({'id': user.get('sub'), 'active': True})
     if not driver:
         raise HTTPException(403, 'Driver is inactive')
-    if not driver.get('approved', False):
-        raise HTTPException(403, 'Driver approval is pending')
     return user
 
 async def require_driver_vehicle(user=Depends(get_current)):
@@ -789,7 +787,7 @@ async def driver_register(payload: DriverRegister):
         'mobile': mobile,
         'pickup_pin': pickup_pin,
         'password_hash': hash_pw(payload.password or uuid.uuid4().hex),
-        'approved': False,
+        'approved': True,
         'active': True,
         'online': False,
         'created_at': now_iso(),
