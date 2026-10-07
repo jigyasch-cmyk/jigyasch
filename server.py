@@ -1384,9 +1384,6 @@ async def add_vehicle(payload: VehicleCreate, user=Depends(require_driver_vehicl
     return doc
 
 
-        {'id': driver_id},
-        {'$set': {
-            'approved': approved 
 
 @api_router.get("/driver/vehicles")
 async def my_vehicles(user=Depends(require_driver)):
