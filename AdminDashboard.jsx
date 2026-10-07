@@ -10,8 +10,143 @@ import { subscribeToPush, pushSupported, pushPermission } from "@/lib/push";
 import NotificationBell from "@/components/NotificationBell";
 import ManagerAdminView from "@/pages/ManagerAdminView";
 
-const VEHICLE_TYPES = ["E-Rickshaw", "Tata Ace", "Tempo", "Tractor"];
+function FaresView({ fares, onSave }) {
+  const [categories, setCategories] = useState([]);
+  const [name, setName] = useState("");
+  const [capacity, setCapacity] = useState("");
+  const [busy, setBusy] = useState(false);
 
+  const hdrs = {
+    headers: { "x-role": "admin" }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const r = await api.get("/vehicle-categories");
+      setCategories(r.data || []);
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail ||
+        "Failed to load vehicle categories"
+      );
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const addCategory = async () => {
+    const clean = name.trim();
+
+    if (!clean) {
+      toast.error("Vehicle category name is required");
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      await api.post(
+        "/admin/vehicle-categories",
+        {
+          name: clean,
+          capacity: capacity.trim(),
+          enabled: true
+        },
+        hdrs
+      );
+
+      toast.success("Vehicle category added");
+
+      setName("");
+      setCapacity("");
+
+      await loadCategories();
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail ||
+        "Failed to add vehicle category"
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div>
+        <h1 className="font-display text-3xl font-bold">
+          Fare & Commission
+        </h1>
+
+        <p className="text-gray-500 text-sm">
+          Add vehicle categories and set fare,
+          per-km rate and commission.
+        </p>
+      </div>
+
+      {/* Add Vehicle Category */}
+      <div className="card space-y-3">
+        <div className="font-display font-bold text-lg">
+          Add Vehicle Category
+        </div>
+
+        <div className="grid md:grid-cols-[1fr_1fr_auto] gap-2">
+          <input
+            className="field"
+            placeholder="Category name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={50}
+          />
+
+          <input
+            className="field"
+            placeholder="Capacity (e.g. 500 kg)"
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+            maxLength={100}
+          />
+
+          <button
+            className="brand-btn"
+            onClick={addCategory}
+            disabled={busy}
+          >
+            {busy ? "Adding..." : "Add Category"}
+          </button>
+        </div>
+      </div>
+
+      {/* Fare Cards */}
+      <div className="grid md:grid-cols-2 gap-3">
+        {categories.map((category) => {
+          const vt = category.name;
+
+          const f = fares.find(
+            (x) => x.vehicle_type === vt
+          );
+
+          return (
+            <FareCard
+              key={category.id || vt}
+              vt={vt}
+              data={f}
+              onSave={onSave}
+            />
+          );
+        })}
+
+        {categories.length === 0 && (
+          <div className="card text-gray-500">
+            No active vehicle categories yet.
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
 export default function AdminDashboard() {
   const nav = useNavigate();
   const [tab, setTab] = useState("dashboard");
