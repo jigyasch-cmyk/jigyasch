@@ -1472,7 +1472,8 @@ await db.vehicles.update_one(
 
 @api_router.patch("/admin/vehicles/{vehicle_id}")
 async def approve_vehicle(vehicle_id: str, payload: VehicleAction, _=Depends(require_admin)):
-    v = await db.vehicles.find_one({'id': vehicle_id})
+    v = await
+db.vehicles.find_one({'id': vehicle_id})
     if not v:
         raise HTTPException(404, 'Vehicle not found')
 
@@ -1492,7 +1493,8 @@ async def approve_vehicle(vehicle_id: str, payload: VehicleAction, _=Depends(req
     await send_push(
         f"driver:{v['owner_id']}",
         f"Vehicle {new_status}",
-        f"Your {v['vehicle_type']} ({v['plate_no']}) has been {new_status} by admin.",
+        f"Your {v['vehicle_type']}
+({v['plate_no']}) has been {new_status} by admin.",
         {'url': '/driver', 'type': f'vehicle_{new_status}'},
     )
 
