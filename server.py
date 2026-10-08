@@ -1240,23 +1240,97 @@ async def create_vehicle_category(
     )
 
     category.pop("_id", None)
-    return category
-   
-@api_router.patch("/admin/vehicle-categories/{category_id}")
+    return category@api_router.patch("/admin/vehicle-categories/{category_id}")
 async def update_vehicle_category(
     category_id: str,
     payload: VehicleCategoryUpdate,
     _=Depends(require_admin)
-)
-    
-    
+):
+    category = await db.vehicle_categories.find_one({"id": category_id})
+
+    if not category:
+        raise HTTPException(404, "Vehicle category not found")
+
+    update = {}
+
+    if payload.name is not None:
+        name = payload.name.strip()
+
+        if not name:
+            raise HTTPException(400, "Vehicle category name is required")
+
+        existing = await db.vehicle_categories.find_one({
+            "name": {"$regex": f"^{name}$", "$options": "i"},
+            "id": {"$ne": category_id}
+        })
+
+        if existing:
+            raise HTTPException(409, "Vehicle category already exists")
+
+        update["name"] = name
+
+    if payload.capacity is not None:
+        update["capacity"] = payload.capacity.strip()
+
+    if payload.enabled is not None:
+        update["enabled"] = payload.enabled
+
+    if not update:
+        raise HTTPException(400, "Nothing to update")
+
+    old_name = category["name"]
+    update["updated_at"] = now_iso()
+
+    await db.vehicle_categories.update_one(
+        {"id": category_id},
+        {"$set": update}
+    )
+
+    if "name" in update and update["name"] != old_name:
+        await db.fare_settings.update_one(
+            {"vehicle_type": old_name},
+            {
+                "$set": {
+                    "vehicle_type": update["name"],
+                    "updated_at": now_iso()
+                }
+            }
+        )
+
+    return await db.vehicle_categories.find_one(
+        {"id": category_id},
+        {"_id": 0}
+    )
+
 
 @api_router.delete("/admin/vehicle-categories/{category_id}")
 async def delete_vehicle_category(
     category_id: str,
     _=Depends(require_admin)
-)
+):
+    category = await db.vehicle_categories.find_one({
+        "id": category_id
+    })
 
+    if not category:
+        raise HTTPException(404, "Vehicle category not found")
+
+    name = category["name"]
+
+    await db.vehicle_categories.delete_one({
+        "id": category_id
+    })
+
+    await db.fare_settings.delete_one({
+        "vehicle_type": name
+    })
+
+    return {
+        "ok": True,
+        "message": "Vehicle category deleted"
+    }
+    
+   
 
 # ---- Fare settings ----
 
