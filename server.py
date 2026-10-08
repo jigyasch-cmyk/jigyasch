@@ -1356,12 +1356,24 @@ async def manager_complaints(manager=Depends(require_manager)):
 # ---- Vehicles ----
 @api_router.post("/driver/vehicles")
 async def add_vehicle(payload: VehicleCreate, user=Depends(require_driver_vehicle)):
-    if payload.vehicle_type not in VEHICLE_TYPES:
-        raise HTTPException(400, 'Invalid vehicle type')
+    vehicle_type = payload.vehicle_type.strip()
+
+    if vehicle_type in VEHICLE_TYPES:
+        valid_type = True
+    else:
+        category = await db.vehicle_categories.find_one({
+            "name": vehicle_type,
+            "enabled": True
+        })
+        valid_type = bool(category)
+
+    if not valid_type:
+        raise HTTPException(400, 'Invalid or disabled vehicle category')
+
     doc = {
         'id': str(uuid.uuid4()),
         'owner_id': user['sub'],
-        'vehicle_type': payload.vehicle_type,
+        'vehicle_type': vehicle_type,
         'plate_no': payload.plate_no.strip().upper(),
         'capacity': payload.capacity.strip(),
         'rc_photo_id': payload.rc_photo_id,
