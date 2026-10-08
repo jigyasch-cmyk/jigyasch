@@ -1241,12 +1241,30 @@ async def create_vehicle_category(
 
     category.pop("_id", None)
     return category
+   
+@api_router.patch("/admin/vehicle-categories/{category_id}")
+async def update_vehicle_category(
+    category_id: str,
+    payload: VehicleCategoryUpdate,
+    _=Depends(require_admin)
+)
+    
+    
+
+@api_router.delete("/admin/vehicle-categories/{category_id}")
+async def delete_vehicle_category(
+    category_id: str,
+    _=Depends(require_admin)
+):
+    ...
+
+
 # ---- Fare settings ----
+
 @api_router.get("/fare-settings")
 async def list_fares():
     cur = db.fare_settings.find({}, {'_id': 0})
     return await cur.to_list(100)
-
 
 @api_router.put("/admin/fare-settings/{vehicle_type}")
 async def update_fare(vehicle_type: str, payload: FareUpdate, _=Depends(require_admin)):
