@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LogOut, LayoutDashboard, Car, Users, Package, Settings2, MapPin,
-  CheckCircle2, XCircle, IndianRupee, Bell, TrendingUp, Send, BadgeCheck, Wallet,
+  CheckCircle2, XCircle, IndianRupee, Bell, TrendingUp, Send, BadgeCheck, Wallet, 
 } from "lucide-react";
 import { toast } from "sonner";
 import api, { fileUrl } from "@/lib/api";
@@ -200,6 +200,13 @@ export default function AdminDashboard() {
           {tab === "payments" && <PaymentsView payments={payments} onReview={reviewPayment} />}
           {tab === "service_areas" && <ServiceAreasView />}
           {tab === "drop_places" && <AdminDropPlacesView />}
+          {tab === "fares" && (
+            <FaresView
+              fares={fares}
+              onSave={saveFare}
+              onRefresh={load}
+            />
+          )}
           {tab === "fares" && <FaresView fares={fares} onSave={saveFare} />}
           {tab === "managers" && <ManagerAdminView />}
           {tab === "manager_payouts" && <ManagerPayoutsView />}
@@ -509,7 +516,7 @@ function BookingsView({ bookings }) {
   );
 }
 
-function FaresView({ fares, onSave }) {
+function FaresView({ fares, onSave, onRefresh }) {
   const [categories, setCategories] = useState([]);
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState("");
@@ -554,9 +561,10 @@ function FaresView({ fares, onSave }) {
       toast.success("Vehicle category added");
 
       setName("");
-      setCapacity("");
+      setCapacity("")
 
       await loadCategories();
+      await onRefresh();
     } catch (e) {
       toast.error(
         e.response?.data?.detail || "Failed to add vehicle category"
@@ -595,6 +603,7 @@ function FaresView({ fares, onSave }) {
 
       cancelEdit();
       await loadCategories();
+      await onRefresh()
     } catch (e) {
       toast.error(
         e.response?.data?.detail || "Failed to update vehicle category"
@@ -618,6 +627,7 @@ function FaresView({ fares, onSave }) {
       toast.success("Vehicle category deleted");
 
       await loadCategories();
+      await onRefresh();
     } catch (e) {
       toast.error(
         e.response?.data?.detail || "Failed to delete vehicle category"
