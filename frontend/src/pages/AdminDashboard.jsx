@@ -510,20 +510,274 @@ function BookingsView({ bookings }) {
 }
 
 function FaresView({ fares, onSave }) {
+  const [categories, setCategories] = useState([]);
+  const [name, setName] = useState("");
+  const [capacity, setCapacity] = useState("");
+
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editCapacity, setEditCapacity] = useState("");
+
+  const hdrs = { headers: { "x-role": "admin" } };
+
+  const loadCategories = async () => {
+    try {
+      const r = await api.get("/vehicle-categories");
+      setCategories(r.data || []);
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail || "Failed to load vehicle categories"
+      );
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const addCategory = async () => {
+    if (!name.trim()) {
+      return toast.error("Vehicle category name is required");
+    }
+
+    try {
+      await api.post(
+        "/admin/vehicle-categories",
+        {
+          name: name.trim(),
+          capacity: capacity.trim(),
+          enabled: true,
+        },
+        hdrs
+      );
+
+      toast.success("Vehicle category added");
+
+      setName("");
+      setCapacity("");
+
+      await loadCategories();
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail || "Failed to add vehicle category"
+      );
+    }
+  };
+
+  const startEdit = (category) => {
+    setEditingId(category.id);
+    setEditName(category.name);
+    setEditCapacity(category.capacity || "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName("");
+    setEditCapacity("");
+  };
+
+  const saveEdit = async (id) => {
+    if (!editName.trim()) {
+      return toast.error("Vehicle category name is required");
+    }
+
+    try {
+      await api.patch(
+        `/admin/vehicle-categories/${id}`,
+        {
+          name: editName.trim(),
+          capacity: editCapacity.trim(),
+        },
+        hdrs
+      );
+
+      toast.success("Vehicle category updated");
+
+      cancelEdit();
+      await loadCategories();
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail || "Failed to update vehicle category"
+      );
+    }
+  };
+
+  const deleteCategory = async (category) => {
+    const ok = window.confirm(
+      `Delete "${category.name}" vehicle category?`
+    );
+
+    if (!ok) return;
+
+    try {
+      await api.delete(
+        `/admin/vehicle-categories/${category.id}`,
+        hdrs
+      );
+
+      toast.success("Vehicle category deleted");
+
+      await loadCategories();
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail || "Failed to delete vehicle category"
+      );
+    }
+  };
+
+  const customNames = categories.map((c) => c.name);
+
+  const allVehicleTypes = [
+    ...VEHICLE_TYPES,
+    ...customNames.filter(
+      (name) => !VEHICLE_TYPES.includes(name)
+    ),
+  ];
+
   return (
     <>
-      <h1 className="font-display text-3xl font-bold">Fare & Commission</h1>
-      <p className="text-gray-500 text-sm">Set base fare, per-km rate and admin commission % for each vehicle type.</p>
+      <div>
+        <h1 className="font-display text-3xl font-bold">
+          Fare & Commission
+        </h1>
+
+        <p className="text-gray-500 text-sm">
+          Add vehicle categories and set base fare, per-km rate and commission.
+        </p>
+      </div>
+
+      {/* ADD VEHICLE CATEGORY */}
+      <div className="card">
+        <h2 className="font-display font-bold text-lg">
+          Add Vehicle Category
+        </h2>
+
+        <div className="grid md:grid-cols-3 gap-2 mt-3">
+          <input
+            className="field"
+            placeholder="Vehicle category name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+
+          <input
+            className="field"
+            placeholder="Capacity (e.g. 1000 kg)"
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+          />
+
+          <button
+            className="brand-btn"
+            onClick={addCategory}
+          >
+            + Add Vehicle Category
+          </button>
+        </div>
+      </div>
+
+      {/* CUSTOM CATEGORIES */}
+      {categories.length > 0 && (
+        <div className="card">
+          <h2 className="font-display font-bold text-lg mb-3">
+            Added Vehicle Categories
+          </h2>
+
+          <div className="space-y-2">
+            {categories.map((c) => (
+              <div
+                key={c.id}
+                className="border rounded-xl p-3"
+              >
+                {editingId === c.id ? (
+                  <div className="grid md:grid-cols-4 gap-2">
+                    <input
+                      className="field"
+                      value={editName}
+                      onChange={(e) =>
+                        setEditName(e.target.value)
+                      }
+                      placeholder="Category name"
+                    />
+
+                    <input
+                      className="field"
+                      value={editCapacity}
+                      onChange={(e) =>
+                        setEditCapacity(e.target.value)
+                      }
+                      placeholder="Capacity"
+                    />
+
+                    <button
+                      className="brand-btn"
+                      onClick={() => saveEdit(c.id)}
+                    >
+                      Save Edit
+                    </button>
+
+                    <button
+                      className="h-11 rounded-xl border border-gray-300"
+                      onClick={cancelEdit}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold">
+                        {c.name}
+                      </div>
+
+                      <div className="text-xs text-gray-500">
+                        Capacity: {c.capacity || "Not specified"}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        className="h-9 px-3 rounded-lg bg-gray-100 font-semibold"
+                        onClick={() => startEdit(c)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        className="h-9 px-3 rounded-lg bg-rose-100 text-rose-700 font-semibold"
+                        onClick={() => deleteCategory(c)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* FARE SETTINGS */}
       <div className="grid md:grid-cols-2 gap-3">
-        {VEHICLE_TYPES.map((vt) => {
-          const f = fares.find((x) => x.vehicle_type === vt);
-          return <FareCard key={vt} vt={vt} data={f} onSave={onSave} />;
+        {allVehicleTypes.map((vt) => {
+          const f = fares.find(
+            (x) => x.vehicle_type === vt
+          );
+
+          return (
+            <FareCard
+              key={vt}
+              vt={vt}
+              data={f}
+              onSave={onSave}
+            />
+          );
         })}
       </div>
     </>
   );
 }
-
 function FareCard({ vt, data, onSave }) {
   const [values, setValues] = useState({ base_fare: 0, per_km: 0, commission_pct: 0 });
   useEffect(() => {
