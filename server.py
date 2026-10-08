@@ -1255,8 +1255,7 @@ async def update_vehicle_category(
 async def delete_vehicle_category(
     category_id: str,
     _=Depends(require_admin)
-):
-    ...
+)
 
 
 # ---- Fare settings ----
