@@ -207,7 +207,6 @@ export default function AdminDashboard() {
               onRefresh={load}
             />
           )}
-          {tab === "fares" && <FaresView fares={fares} onSave={saveFare} />}
           {tab === "managers" && <ManagerAdminView />}
           {tab === "manager_payouts" && <ManagerPayoutsView />}
           {tab === "payment_settings" && <AdminPaymentSettingsView />}
