@@ -10,7 +10,6 @@ import LiveTripMap from "@/components/LiveTripMap";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const VEHICLE_TYPES = ["E-Rickshaw", "Tata Ace", "Tempo", "Tractor"];
 
 export default function DriverDashboard() {
   const nav = useNavigate();
@@ -517,6 +516,24 @@ function ActiveTripCard({ b, onTrip }) {
 }
 
 function AddVehicleDialog({ open, onOpenChange, onAdded }) {
+  const [vehicleCategories, setVehicleCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    setCategoriesLoading(true);
+
+    api.get("/vehicle-categories")
+      .then((r) => {
+        const data = Array.isArray(r.data) ? r.data : [];
+        setVehicleCategories(data.filter((category) => category.enabled !== false));
+      })
+      .catch((e) => {
+        toast.error("Vehicle categories load নহ'ল");
+      })
+      .finally(() => setCategoriesLoading(false));
+  }, [open]);
   const [form, setForm] = useState({ vehicle_type: "", plate_no: "", capacity: "", rc_photo_id: null, vehicle_photo_id: null });
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState({ rc: false, vehicle: false });
@@ -564,10 +581,26 @@ function AddVehicleDialog({ open, onOpenChange, onAdded }) {
               <SelectValue placeholder="Vehicle type" />
             </SelectTrigger>
             <SelectContent>
-              {VEHICLE_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
-              ))}
-            </SelectContent>
+              {categoriesLoading ? (
+                <SelectItem value="__loading__" disabled>
+                  Loading categories...
+                </SelectItem>
+              ) : vehicleCategories.length === 0 ? (
+                <SelectItem value="__empty__" disabled>
+                  No vehicle categories available
+                </SelectItem>
+              ) : (
+                vehicleCategories.map((category) => (
+                  <SelectItem
+                    key={category.id || category.name}
+                    value={category.name}
+                  >
+                     {category.name}
+                   </SelectItem>
+                 ))
+               )}
+              
+          </SelectContent>
           </Select>
           <input data-testid="add-vehicle-plate" className="field" placeholder="Plate number (e.g. AS01AB1234)"
             value={form.plate_no} onChange={(e) => setForm({ ...form, plate_no: e.target.value.toUpperCase() })} />
