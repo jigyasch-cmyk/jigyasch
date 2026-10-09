@@ -26,6 +26,9 @@ export default function Customer() {
   const [step, setStep] = useState(1);
   const [vehicleType, setVehicleType] = useState(null);
   const [vehicles, setVehicles] = useState([]);
+
+  const [vehicleCategories, setVehicleCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [fares, setFares] = useState([]);
   const [form, setForm] = useState({ name: "", mobile: "" });
@@ -60,6 +63,20 @@ export default function Customer() {
       if (savedPin) setPincode(savedPin);
     } catch {}
     api.get("/fare-settings").then((r) => setFares(r.data)).catch(() => {});
+
+
+    api.get("/vehicle-categories")
+      .then((r) => {
+        const data = Array.isArray(r.data) ? r.data : [];
+        setVehicleCategories(
+          data.filter(
+            (category) => category.enabled !== false && category.name
+          )
+        );
+      })
+      .catch(() => toast.error("Vehicle categories load নহ'ল"))
+      .finally(() => 
+    setCategoriesLoading(false));
     api.get("/drop-places").then((r) => setDropPlaces(r.data || [])).catch(() => {});
   }, []);
 
@@ -355,32 +372,74 @@ export default function Customer() {
         </div>
       </div>
 
+
+
       {step === 1 && (
         <div className="p-5 space-y-3">
-          {Object.keys(VEHICLE_META).map((type) => {
-            const f = fares.find((x) => x.vehicle_type === type);
-            return (
-              <button
-                key={type}
-                data-testid={`customer-vehicle-type-${type.replace(/\s+/g, "-").toLowerCase()}`}
-                onClick={() => pickType(type)}
-                className="w-full flex items-center gap-4 p-3 rounded-2xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/40 transition text-left"
-              >
-                <img src={VEHICLE_META[type].img} alt={type} className="h-20 w-20 rounded-xl object-cover" />
-                <div className="flex-1">
-                  <div className="font-display font-bold text-lg">{type}</div>
-                  <div className="text-sm text-gray-500">{VEHICLE_META[type].capacity}</div>
-                  {f && (
-                    <div className="mt-1 text-xs text-emerald-700 font-semibold">
-                      ₹{f.base_fare} base + ₹{f.per_km}/km
+          {categoriesLoading && (
+            <div className="text-center text-gray-500 py-4">
+              Loading vehicle categories...
+            </div>
+          )}
+
+          {!categoriesLoading && vehicleCategories.length === 0 && (
+            <div className="card text-center text-gray-500">
+              No vehicle categories available.
+            </div>
+          )}
+
+          {!categoriesLoading &&
+            vehicleCategories.map((category) => {
+              const type = category.name;
+              const meta = VEHICLE_META[type];
+              const f = fares.find(
+                (item) => item.vehicle_type === type
+              );
+
+              return (
+                <button
+                  key={category.id || type}
+                  data-testid={`customer-vehicle-type-${type
+                    .replace(/\s+/g, "-")
+                    .toLowerCase()}`}
+                  onClick={() => pickType(type)}
+                  className="w-full flex items-center gap-4 p-3 rounded-2xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/40 transition text-left"
+                >
+                  <img
+                    src={meta?.img || VEHICLE_META["Tata Ace"].img}
+                    alt={type}
+                    className="h-20 w-20 rounded-xl object-cover"
+                  />
+
+                  <div className="flex-1">
+                    <div className="font-display font-bold text-lg">
+                      {type}
                     </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+
+                    <div className="text-sm text-gray-500">
+                      {category.capacity ||
+                        meta?.capacity ||
+                        "Capacity not specified"}
+                    </div>
+
+                    {f && (
+                      <div className="mt-1 text-xs text-emerald-700 font-semibold">
+                        ₹{f.base_fare} base + ₹{f.per_km}/km
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
         </div>
       )}
+
+      
+
+
+
+
+      
 
       {step === 2 && (
         <div className="p-5 space-y-3">
