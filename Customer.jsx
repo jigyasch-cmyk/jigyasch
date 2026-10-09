@@ -422,7 +422,14 @@ export default function Customer() {
               className="w-full text-left card hover:border-emerald-500 transition"
             >
               <div className="flex items-center gap-4">
-                <img src={VEHICLE_META[vehicleType].img} className="h-16 w-16 rounded-xl object-cover" alt="" />
+                
+                <img
+                  src={(VEHICLE_META[vehicleType] || VEHICLE_META["Tata Ace"]).img}
+                  className="h-16 w-16 rounded-xl object-cover"
+                  alt={vehicleType}
+                />  
+
+                
                 <div className="flex-1">
                   <div className="font-display font-bold">{v.vehicle_type}</div>
                   <div className="text-sm text-gray-500">{v.plate_no} • {v.capacity}</div>
