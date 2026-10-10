@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Phone, User, IndianRupee, CheckCircle2, Clock, PhoneCall, XCircle, 
+  ArrowLeft, Phone, User, IndianRupee, CheckCircle2, Clock, PhoneCall, XCircle,
   Bell, Navigation, Sparkles, Route as RouteIcon, Loader2, LocateFixed, Circle,
   Flag, Hash, CheckCircle, X, ChevronRight,
 } from "lucide-react";
@@ -23,9 +23,12 @@ const VEHICLE_META = {
 
 export default function Customer() {
   const nav = useNavigate();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(3);
   const [vehicleType, setVehicleType] = useState(null);
   const [vehicles, setVehicles] = useState([]);
+
+  const [vehicleCategories, setVehicleCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [fares, setFares] = useState([]);
   const [form, setForm] = useState({ name: "", mobile: "" });
@@ -55,11 +58,29 @@ export default function Customer() {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("avsgo_customer_profile") || "null");
-      if (saved?.name && saved?.mobile) { setForm({ name: saved.name, mobile: saved.mobile }); setOnboardingDone(true); }
+      if (saved?.name && saved?.mobile) {
+        setForm({ name: saved.name, mobile: saved.mobile });
+        setOnboardingDone(true);
+        setStep(3);
+      }
       const savedPin = localStorage.getItem("avsgo_customer_pickup_pin");
       if (savedPin) setPincode(savedPin);
     } catch {}
     api.get("/fare-settings").then((r) => setFares(r.data)).catch(() => {});
+
+
+    api.get("/vehicle-categories")
+      .then((r) => {
+        const data = Array.isArray(r.data) ? r.data : [];
+        setVehicleCategories(
+          data.filter(
+            (category) => category.enabled !== false && category.name
+          )
+        );
+      })
+      .catch(() => toast.error("Vehicle categories load নহ'ল"))
+      .finally(() => 
+    setCategoriesLoading(false));
     api.get("/drop-places").then((r) => setDropPlaces(r.data || [])).catch(() => {});
   }, []);
 
@@ -118,17 +139,15 @@ export default function Customer() {
   const distance = routeMeta?.distance_km || 0;
   const estFare = fareCfg ? Math.round((fareCfg.base_fare + fareCfg.per_km * distance) * 100) / 100 : 0;
 
-  const pickType = async (type) => {
+
+  const pickType = (type) => {
     setVehicleType(type);
-    setLoading(true);
-    try {
-      const r = await api.get("/public/vehicles", { params: { vehicle_type: type } });
-      setVehicles(r.data);
-      setStep(2);
-    } catch { toast.error("Could not load vehicles"); }
-    finally { setLoading(false); }
+    setSelectedVehicle(null);
+    setAutoMode(true);
+    setStep(3);
   };
 
+  
   const goDetails = (v) => { setSelectedVehicle(v); setAutoMode(false); setStep(3); };
 
   const startAutoAssign = async () => {
@@ -185,6 +204,7 @@ export default function Customer() {
       localStorage.setItem("avsgo_customer_profile", JSON.stringify({name: form.name.trim(), mobile: form.mobile}));
       localStorage.setItem("avsgo_customer_pickup_pin", pin);
       setOnboardingDone(true);
+      setStep(3);
       toast.success("Customer saved • Service available");
     } finally { setOnboardingBusy(false); }
   };
@@ -231,6 +251,7 @@ export default function Customer() {
     if (!form.name || !form.mobile) return toast.error("Please enter your name and mobile");
     if (form.mobile.length !== 10) return toast.error("Enter a valid 10-digit mobile");
     if (!pickup) return toast.error("Please select a pickup location");
+    if (!vehicleType) return toast.error("Please choose a vehicle category");
     if (!pinArea?.pincode) return toast.error("Enter a valid enabled Pickup PIN");
     if (!drop?.id) return toast.error("Please select a Drop Place from the AvSGo common place list");
     if (routeError) return toast.error(routeError);
@@ -339,146 +360,34 @@ export default function Customer() {
           <button
             data-testid="customer-back-btn"
 
-            onClick={() => {
-            if (step === 4) {
-            nav("/");
-            } else if (step === 3) {
-            if (selectedVehicle) {
-            setStep(2);
 
-              
-        
+            onClick={() => nav("/")}
+
             
-           className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
+            
+            
+            className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <div className="text-xs uppercase tracking-wider text-gray-500">Step {step} of 4</div>
-            <div className="font-display font-bold text-lg">
-              {step === 1 && "Choose vehicle type"}
-              {step === 2 && `${vehicleType} available`}
-              {step === 3 && "Trip details"}
+
+            
+            <div className="text-xs uppercase tracking-wider text-gray-500">
+              {step === 3 && "Booking details"}
               {step === 4 && "Booking status"}
-            </div>
+          </div>
+          <div className="font-display font-bold text-lg">
+              {step === 3 && "Pickup, Drop & Vehicle"}
+              {step === 4 && "Booking status"}
+          </div>
+            
           </div>
         </div>
       </div>
 
-      {step === 1 && (
-        <div className="p-5 space-y-3">
-          {Object.keys(VEHICLE_META).map((type) => {
-            const f = fares.find((x) => x.vehicle_type === type);
-            return (
-              <button
-                key={type}
-                data-testid={`customer-vehicle-type-${type.replace(/\s+/g, "-").toLowerCase()}`}
-                onClick={() => pickType(type)}
-                className="w-full flex items-center gap-4 p-3 rounded-2xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/40 transition text-left"
-              >
-                <img src={VEHICLE_META[type].img} alt={type} className="h-20 w-20 rounded-xl object-cover" />
-                <div className="flex-1">
-                  <div className="font-display font-bold text-lg">{type}</div>
-                  <div className="text-sm text-gray-500">{VEHICLE_META[type].capacity}</div>
-                  {f && (
-                    <div className="mt-1 text-xs text-emerald-700 font-semibold">
-                      ₹{f.base_fare} base + ₹{f.per_km}/km
-                    </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="p-5 space-y-3">
-          {isGeoSupported() && (
-            <button
-              data-testid="customer-auto-assign-btn"
-              onClick={startAutoAssign}
-              disabled={locLoading}
-              className="w-full text-left rounded-2xl p-4 bg-gradient-to-br from-emerald-600 to-emerald-700 text-white shadow-md hover:shadow-lg transition disabled:opacity-70"
-            >
-              <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-xl bg-white/15 flex items-center justify-center">
-                  <Navigation className={`h-6 w-6 ${locLoading ? "animate-spin" : ""}`} />
-                </div>
-                <div className="flex-1">
-                  <div className="font-display font-bold flex items-center gap-1.5">
-                    <Sparkles className="h-4 w-4" /> Find nearest driver
-                  </div>
-                  <div className="text-xs text-emerald-50 mt-0.5">
-                    {locLoading ? "Reading your location…" : "Uses your GPS to auto-assign the closest available driver"}
-                  </div>
-                </div>
-              </div>
-            </button>
-          )}
-          <div className="text-xs uppercase text-gray-500 font-semibold tracking-wider pt-2">Or choose a vehicle manually</div>
-          {loading && <div className="text-center text-gray-500 py-8">Loading…</div>}
-          {!loading && vehicles.length === 0 && (
-            <div className="card text-center">
-              <div className="text-gray-500">No {vehicleType} available right now.</div>
-              <button onClick={() => setStep(1)} className="brand-btn-outline mt-4">Choose another type</button>
-            </div>
-          )}
-          {vehicles.map((v) => (
-            <button
-              key={v.id}
-              data-testid={`customer-select-vehicle-${v.id}`}
-              onClick={() => goDetails(v)}
-              className="w-full text-left card hover:border-emerald-500 transition"
-            >
-              <div className="flex items-center gap-4">
-                
-                <img
-                  src={(VEHICLE_META[vehicleType] || VEHICLE_META["Tata Ace"]).img}
-                  className="h-16 w-16 rounded-xl object-cover"
-                  alt={vehicleType}
-                />  
-
-                
-                <div className="flex-1">
-                  <div className="font-display font-bold">{v.vehicle_type}</div>
-                  <div className="text-sm text-gray-500">{v.plate_no} • {v.capacity}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">Driver: {v.driver_name}</div>
-                </div>
-                <span className="chip bg-emerald-100 text-emerald-700">Available</span>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
       {step === 3 && (
         <div className="p-4 space-y-4">
-          {autoMode ? (
-            <div className="card bg-emerald-50 border-emerald-200 !p-3">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-emerald-600 flex items-center justify-center">
-                  <Navigation className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <div className="font-display font-bold text-emerald-900 text-sm">Auto — nearest {vehicleType}</div>
-                  <div className="text-[11px] text-emerald-800/80">We'll broadcast to the closest available drivers.</div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            selectedVehicle && (
-              <div className="card !p-3">
-                <div className="flex items-center gap-3">
-                  <img src={VEHICLE_META[vehicleType].img} className="h-12 w-12 rounded-xl object-cover" alt="" />
-                  <div>
-                    <div className="font-display font-bold text-sm">{selectedVehicle.vehicle_type}</div>
-                    <div className="text-xs text-gray-500">{selectedVehicle.plate_no}</div>
-                  </div>
-                </div>
-              </div>
-            )
-          )}
 
           {/* Pickup */}
           <div className="space-y-2">
@@ -605,6 +514,67 @@ export default function Customer() {
             </div>
           </div>
 
+          {/* Vehicle Category — shown only after Pickup and Drop fields */}
+          <div className="space-y-3">
+            <h3 className="font-display font-bold text-lg">Choose Vehicle Category</h3>
+
+            {categoriesLoading && (
+              <div className="text-center text-gray-500 py-3">
+                Loading vehicle categories...
+              </div>
+            )}
+
+            {!categoriesLoading && vehicleCategories.length === 0 && (
+              <div className="card text-center text-gray-500">
+                No vehicle categories available.
+              </div>
+            )}
+
+            {!categoriesLoading && vehicleCategories.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                {vehicleCategories.map((category) => {
+                  const type = category.name;
+                  const meta = VEHICLE_META[type];
+                  const fare = fares.find((item) => item.vehicle_type === type);
+
+                  return (
+                    <button
+                      key={category.id || type}
+                      type="button"
+                      data-testid={`customer-vehicle-type-${type.replace(/\\s+/g, "-").toLowerCase()}`}
+                      onClick={() => pickType(type)}
+                      className={`rounded-2xl border p-3 text-left transition ${
+                        vehicleType === type
+                          ? "border-emerald-600 bg-emerald-50"
+                          : "border-gray-200 bg-white hover:border-emerald-500"
+                      }`}
+                    >
+                      <img
+                        src={meta?.img || VEHICLE_META["Tata Ace"].img}
+                        alt={type}
+                        className="h-16 w-full rounded-xl object-cover"
+                      />
+                      <div className="mt-2 font-display font-bold">{type}</div>
+                      <div className="text-xs text-gray-500">
+                        {category.capacity || meta?.capacity || "Capacity not specified"}
+                      </div>
+                      {fare && (
+                        <div className="mt-1 text-xs font-semibold text-emerald-700">
+                          ₹{fare.base_fare} base + ₹{fare.per_km}/km
+                        </div>
+                      )}
+                      {vehicleType === type && (
+                        <div className="mt-2 text-xs font-semibold text-emerald-700">
+                          ✓ Selected
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Name + Mobile */}
           <div className="space-y-3">
             <Field icon={<User className="h-5 w-5" />} placeholder="Your name" testid="customer-name"
@@ -638,7 +608,7 @@ export default function Customer() {
           <button
             data-testid="customer-confirm-btn"
             onClick={confirm}
-            disabled={loading || !pickup || !pinArea || !drop || !routeMeta?.distance_km || routeCalculating}
+            disabled={loading || !pickup || !pinArea || !drop || !vehicleType || !routeMeta?.distance_km || routeCalculating}
             className="brand-btn w-full disabled:opacity-60"
           >
             {loading ? "Sending…" : "Confirm booking request"}
@@ -693,7 +663,7 @@ export default function Customer() {
               <XCircle className="h-14 w-14 text-rose-500 mx-auto" />
               <h2 className="font-display text-xl font-bold mt-3">Booking rejected</h2>
               <p className="text-gray-500 text-sm mt-1">Please choose another vehicle.</p>
-              <button className="brand-btn-outline mt-4" onClick={() => setStep(2)}>Choose another</button>
+              <button className="brand-btn-outline mt-4" onClick={() => { setBooking(null); setVehicleType(null); setStep(3); }}>Choose another</button>
             </div>
           )}
           {booking.status === "completed" && (
