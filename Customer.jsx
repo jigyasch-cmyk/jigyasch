@@ -358,19 +358,23 @@ export default function Customer() {
     <div className="mobile-shell pb-24">
       <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
         <div className="flex items-center gap-3 p-4">
-          <button
-data-testid="customer-back-btn"
-
-
-            onClick={() => nav("/")}
-
+          
+<button
+  data-testid="customer-back-btn"
+  onClick={() => {
+    if (step === 2) {
+      setStep(1);
+    } else if (step === 3) {
+      setStep(selectedVehicle ? 2 : 1);
+    } else {
+      nav("/");
+    }
+  }}
+  className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
+>
+  <ArrowLeft className="h-5 w-5" />
+</button>
             
-            
-            
-            className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
           <div>
 
             
