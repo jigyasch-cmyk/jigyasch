@@ -423,7 +423,7 @@ export default function Customer() {
                     vehicleType === type
                       ? "border-emerald-600 bg-emerald-50"
                       : "border-gray-200 bg-white hover:border-emerald-500"
-}`                }`}
+                  }`}
                 >
                   <img
                     src={meta?.img || VEHICLE_META["Tata Ace"].img}
