@@ -352,7 +352,7 @@ export default function Customer() {
       <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
         <div className="flex items-center gap-3 p-4">
           <button
-            data-testid="customer-back-btn"
+  data-testid="customer-back-btn"
 
 
             onClick={() => {
