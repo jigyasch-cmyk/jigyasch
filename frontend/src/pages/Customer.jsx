@@ -135,17 +135,15 @@ export default function Customer() {
   const distance = routeMeta?.distance_km || 0;
   const estFare = fareCfg ? Math.round((fareCfg.base_fare + fareCfg.per_km * distance) * 100) / 100 : 0;
 
-  const pickType = async (type) => {
+
+  const pickType = (type) => {
     setVehicleType(type);
-    setLoading(true);
-    try {
-      const r = await api.get("/public/vehicles", { params: { vehicle_type: type } });
-      setVehicles(r.data);
-      setStep(2);
-    } catch { toast.error("Could not load vehicles"); }
-    finally { setLoading(false); }
+    setSelectedVehicle(null);
+    setAutoMode(true);
+    setStep(3);
   };
 
+  
   const goDetails = (v) => { setSelectedVehicle(v); setAutoMode(false); setStep(3); };
 
   const startAutoAssign = async () => {
@@ -361,13 +359,21 @@ export default function Customer() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
-            <div className="text-xs uppercase tracking-wider text-gray-500">Step {step} of 4</div>
-            <div className="font-display font-bold text-lg">
-              {step === 1 && "Choose vehicle type"}
-              {step === 2 && `${vehicleType} available`}
-              {step === 3 && "Trip details"}
+
+            
+            <div className="text-xs uppercase tracking-wider text-gray-500">
+              {step === 1 && "Step 1 of 3"}
+              {step === 2 && "Step 2 of 3"}
+              {step === 3 && "Step 3 of 3"}
               {step === 4 && "Booking status"}
-            </div>
+          </div>
+          <div className="font-display font-bold text-lg">
+              {step === 1 && "Trip details"}
+              {step === 2 && "Choose vehicle category"}
+              {step === 3 && "Confirm booking"}
+              {step === 4 && "Booking status"}
+          </div>
+            
           </div>
         </div>
       </div>
@@ -403,12 +409,18 @@ export default function Customer() {
                     .replace(/\s+/g, "-")
                     .toLowerCase()}`}
                   onClick={() => pickType(type)}
-                  className="w-full flex items-center gap-4 p-3 rounded-2xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/40 transition text-left"
+
+                  
+                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border text-center transition ${
+                    vehicleType === type
+                      ? "border-emerald-600 bg-emerald-50"
+                      : "border-gray-200 bg-white hover:border-emerald-500"
+}`                }`}
                 >
                   <img
                     src={meta?.img || VEHICLE_META["Tata Ace"].img}
                     alt={type}
-                    className="h-20 w-20 rounded-xl object-cover"
+                    className="h-16 w-16 rounded-xl object-cover"
                   />
 
                   <div className="flex-1">
@@ -434,15 +446,14 @@ export default function Customer() {
         </div>
       )}
 
-      
-
-
-
 
       
 
       {step === 2 && (
-        <div className="p-5 space-y-3">
+        <div className="p-4">
+          <div className="grid grid-cols-2 gap-3">
+
+          
           {isGeoSupported() && (
             <button
               data-testid="customer-auto-assign-btn"
@@ -494,7 +505,7 @@ export default function Customer() {
         </div>
       )}
 
-      {step === 3 && (
+      {step === 1 && (
         <div className="p-4 space-y-4">
           {autoMode ? (
             <div className="card bg-emerald-50 border-emerald-200 !p-3">
