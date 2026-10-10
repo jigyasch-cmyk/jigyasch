@@ -354,13 +354,25 @@ export default function Customer() {
           <button
             data-testid="customer-back-btn"
 
-            
+
             onClick={() => {
-              if (step === 2) setStep(1);
-              else if (step === 3) setStep(2);
-              else if (step === 4) nav("/");
-              else nav("/");
-            }}
+              if (step === 2) {
+                setStep(1);
+              } else if (step === 3) {
+              if (selectedVehicle) 
+                setStep(2);
+              } else {
+                setStep(1);
+              }
+              } else if (step === 4) {
+                nav("/");
+              } else {
+                nav("/");
+              }
+           }}
+
+            
+            
             
             className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
           >
@@ -513,7 +525,7 @@ export default function Customer() {
         </div>
       )}
 
-      {step === 1 && (
+      {step === 3 && (
         <div className="p-4 space-y-4">
           {autoMode ? (
             <div className="card bg-emerald-50 border-emerald-200 !p-3">
