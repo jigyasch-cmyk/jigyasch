@@ -348,56 +348,30 @@ export default function Customer() {
   }
 
   return (
-    <div className="mobile-shell pb-24">
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
-        <div className="flex items-center gap-3 p-4">
-          <button
-  data-testid="customer-back-btn"
+  <div className="mobile-shell pb-24">
+    <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
+      <div className="flex items-center gap-3 p-4">
+        <button
+          data-testid="customer-back-btn"
+          onClick={() => nav("/")}
+          className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
 
-
-            onClick={() => {
-              if (step === 2) {
-                setStep(1);
-              } else if (step === 3) {
-              if (selectedVehicle) 
-                setStep(2);
-              } else {
-                setStep(1);
-              }
-              } else if (step === 4) {
-                nav("/");
-              } else {
-                nav("/");
-              }
-           }}
-
-            
-            
-            
-            className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <div>
-
-            
-            <div className="text-xs uppercase tracking-wider text-gray-500">
-              {step === 1 && "Step 1 of 3"}
-              {step === 2 && "Step 2 of 3"}
-              {step === 3 && "Step 3 of 3"}
-              {step === 4 && "Booking status"}
+        <div>
+          <div className="text-xs uppercase tracking-wider text-gray-500">
+            {step === 3 && "Booking details"}
+            {step === 4 && "Booking status"}
           </div>
+
           <div className="font-display font-bold text-lg">
-              {step === 1 && "Trip details"}
-              {step === 2 && "Choose vehicle category"}
-              {step === 3 && "Confirm booking"}
-              {step === 4 && "Booking status"}
-          </div>
-            
+            {step === 3 && "Pickup, Drop & Vehicle"}
+            {step === 4 && "Booking status"}
           </div>
         </div>
       </div>
-
+    </div>
 
 
       {step === 1 && (
