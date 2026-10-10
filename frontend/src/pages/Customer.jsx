@@ -429,6 +429,216 @@ export default function Customer() {
                     </div>
 
                     {f && (
+                      <div className="mt-1 text-xs text-emerald-700  (pincode || "").trim();
+    if (p.length !== 6 || !/^\d{6}$/.test(p)) {
+      setPinArea(null); setPinError(p.length > 0 && p.length < 6 ? null : null);
+      return;
+    }
+    if (pinArea?.pincode === p) return;
+    const t = setTimeout(() => resolvePincode(p), 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pincode]);
+
+  // Drop change from map (drag or click) — reverse-geocode to save address
+  const handleMapDropChange = async ({ lat, lng }) => {
+    // Optimistic marker update while address loads
+    setDrop((prev) => ({ lat, lng, display_name: prev?.display_name || "Locating…" }));
+    try {
+      const r = await api.get(`/reverse-geocode?lat=${lat}&lng=${lng}`);
+      setDrop({ lat, lng, display_name: r.data?.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+    } catch {
+      setDrop({ lat, lng, display_name: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+    }
+  };
+
+  const confirm = async () => {
+    if (!form.name || !form.mobile) return toast.error("Please enter your name and mobile");
+    if (form.mobile.length !== 10) return toast.error("Enter a valid 10-digit mobile");
+    if (!pickup) return toast.error("Please select a pickup location");
+    if (!pinArea?.pincode) return toast.error("Enter a valid enabled Pickup PIN");
+    if (!drop?.id) return toast.error("Please select a Drop Place from the AvSGo common place list");
+    if (routeError) return toast.error(routeError);
+    if (!routeMeta || !routeMeta.distance_km) return toast.error("Waiting for road distance — please wait a moment");
+
+    setLoading(true);
+    try {
+      const r = await api.post("/customer/bookings/auto", {
+        vehicle_type: vehicleType,
+        customer_name: form.name,
+        customer_mobile: form.mobile,
+        pickup: pickup.display_name,
+        drop_location: drop.display_name,
+        drop_place_id: drop.id,
+        distance_km: routeMeta.distance_km,
+        pickup_lat: pickup.lat,
+        pickup_lng: pickup.lng,
+        pickup_pin: pinArea.pincode,
+        max_radius_km: 25,
+      });
+      setBooking(r.data);
+      try {
+        localStorage.setItem("avsgo_customer_profile", JSON.stringify({ name: form.name.trim(), mobile: form.mobile }));
+        localStorage.setItem("avsgo_customer_pickup_pin", pinArea.pincode);
+      } catch {}
+      setStep(4);
+      toast.success("Booking broadcast to nearby drivers • first valid driver to accept wins");
+      if (pushSupported() && pushPermission() !== "denied") {
+        subscribeToPush(`customer:${form.mobile}`).catch(() => {});
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Booking failed");
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    if (step !== 4 || !booking) return;
+    const t = setInterval(async () => {
+      try {
+        const r = await api.get(`/customer/bookings/${booking.id}`);
+        setBooking(r.data);
+        if (r.data.status === "accepted" && booking.status === "requested") toast.success("Driver accepted your booking!");
+        if (r.data.status === "rejected" && booking.status === "requested") toast.error("Driver rejected your booking");
+      } catch {}
+    }, 2500);
+    return () => clearInterval(t);
+  }, [step, booking?.id, booking?.status]);
+
+  useEffect(() => {
+    if (step !== 4 || !booking || !["accepted","driver_to_pickup","trip_started"].includes(booking.status)) return;
+    let dead=false, last=0, ws;
+    const poll=async()=>{ try { const r=await api.get(`/customer/bookings/${booking.id}/trip`,{params:{mobile:booking.customer_mobile}}); if(!dead) setTripState(r.data); } catch {} };
+    poll();
+    const t=setInterval(poll,5000);
+    try {
+      ws = new WebSocket(wsUrl("/api/ws/customer", { booking_id: booking.id, mobile: booking.customer_mobile }));
+      ws.onmessage = (event) => {
+        try {
+          const msg=JSON.parse(event.data);
+          if (msg.type === "driver_location") setTripState(prev => prev ? ({...prev, driver_location: msg.data}) : prev);
+          else if (msg.type === "customer_location") setTripState(prev => prev ? ({...prev, customer_location: msg.data}) : prev);
+          else if (["booking_updated","trip_updated","payment_updated"].includes(msg.type)) poll();
+        } catch {}
+      };
+    } catch {}
+    const stop=watchPosition((coords)=>{ if(Date.now()-last<3000)return; last=Date.now(); api.post('/customer/location',{customer_mobile:booking.customer_mobile,...coords}).catch(()=>{}); },()=>{});
+    return()=>{dead=true;clearInterval(t);try{ws?.close();}catch{};stop&&stop();};
+  }, [step, booking?.id, booking?.status]);
+
+  useEffect(()=>{
+    if(!tripState) return;
+    const stage=tripState.trip_stage;
+    const from=stage==='in_trip'?tripState.pickup:tripState.driver_location;
+    const to=stage==='in_trip'?tripState.drop:(tripState.customer_location||tripState.pickup);
+    if(!from?.lat || !to?.lat) return;
+    api.post('/route',{pickup_lat:from.lat,pickup_lng:from.lng,drop_lat:to.lat,drop_lng:to.lng}).then(r=>setTripGeometry(r.data.geometry)).catch(()=>{});
+  }, [tripState?.trip_stage,tripState?.driver_location?.lat,tripState?.driver_location?.lng,tripState?.customer_location?.lat,tripState?.customer_location?.lng]);
+
+
+  if (!onboardingDone) {
+    return <div className="mobile-shell min-h-screen bg-white p-6">
+      <div className="pt-8">
+        <div className="h-14 w-14 rounded-2xl bg-emerald-100 flex items-center justify-center"><Hash className="h-7 w-7 text-emerald-600"/></div>
+        <h1 className="font-display text-3xl font-bold mt-4">Welcome to AvSGo</h1>
+        <p className="text-gray-500 mt-1">First visit: check your Pickup PIN and save your customer details.</p>
+      </div>
+      <div className="mt-7 space-y-3">
+        <label className="text-sm font-semibold">Pickup PIN</label>
+        <input className="field" inputMode="numeric" maxLength="6" placeholder="6-digit Pickup PIN" value={pincode} onChange={e=>setPincode(e.target.value.replace(/\D/g,"").slice(0,6))}/>
+        {pinBusy && <div className="text-sm text-gray-500">Checking service availability…</div>}
+        {pinArea?.pincode===pincode && <div className="rounded-xl bg-emerald-50 text-emerald-700 p-3 text-sm font-semibold">✓ Service Available — {pinArea.display_name}</div>}
+        {pinError && <div className="rounded-xl bg-rose-50 text-rose-700 p-3 text-sm">{pinError}</div>}
+        <label className="text-sm font-semibold block pt-2">Name</label>
+        <input className="field" placeholder="Your name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
+        <label className="text-sm font-semibold block pt-2">Mobile Number</label>
+        <input className="field" inputMode="numeric" maxLength="10" placeholder="10-digit mobile number" value={form.mobile} onChange={e=>setForm({...form,mobile:e.target.value.replace(/\D/g,"").slice(0,10)})}/>
+        <button className="brand-btn w-full mt-3" disabled={onboardingBusy||pinBusy} onClick={completeOnboarding}>{onboardingBusy?"Saving…":"Continue & Save Customer"}</button>
+      </div>
+    </div>;
+  }
+
+  return (
+  <div className="mobile-shell pb-24">
+    <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
+      <div className="flex items-center gap-3 p-4">
+        <button
+          data-testid="customer-back-btn"
+          onClick={() => nav("/")}
+          className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+
+        <div>
+          <div className="text-xs uppercase tracking-wider text-gray-500">
+            {step === 3 && "Booking details"}
+            {step === 4 && "Booking status"}
+          </div>
+
+          <div className="font-display font-bold text-lg">
+            {step === 3 && "Pickup, Drop & Vehicle"}
+            {step === 4 && "Booking status"}
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+      {step === 1 && (
+        <div className="p-5 space-y-3">
+          {categoriesLoading && (
+            <div className="text-center text-gray-500 py-4">
+              Loading vehicle categories...
+            </div>
+          )}
+
+          {!categoriesLoading && vehicleCategories.length === 0 && (
+            <div className="card text-center text-gray-500">
+              No vehicle categories available.
+            </div>
+          )}
+
+          {!categoriesLoading &&
+            vehicleCategories.map((category) => {
+              const type = category.name;
+              const meta = VEHICLE_META[type];
+              const f = fares.find(
+                (item) => item.vehicle_type === type
+              );
+
+              return (
+                <button
+                  key={category.id || type}
+                  data-testid={`customer-vehicle-type-${type
+                    .replace(/\s+/g, "-")
+                    .toLowerCase()}`}
+                  onClick={() => pickType(type)}
+
+                  
+                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl border text-center transition ${
+                    vehicleType === type
+                      ? "border-emerald-600 bg-emerald-50"
+                      : "border-gray-200 bg-white hover:border-emerald-500"
+                  }`}
+                >
+                  <img
+                    src={meta?.img || VEHICLE_META["Tata Ace"].img}
+                    alt={type}
+                    className="h-16 w-16 rounded-xl object-cover"
+                  />
+
+                  <div className="flex-1">
+                    <div className="font-display font-bold text-lg">
+                      {type}
+                    </div>
+
+                    <div className="text-sm text-gray-500">
+                      {category.capacity ||
+                        meta?.capacity ||
+                        "Capacity not specified"}
+                    </div>
+
+                    {f && (
                       <div className="mt-1 text-xs text-emerald-700 font-semibold">
                         ₹{f.base_fare} base + ₹{f.per_km}/km
                       </div>
