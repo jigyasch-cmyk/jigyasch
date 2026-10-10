@@ -345,16 +345,17 @@ export default function Customer() {
             } else if (step === 3) {
             if (selectedVehicle) {
             setStep(2);
-            } else {
-            setStep(1);
-            }
-            } else if (step === 2) {
-            setStep(1);
-            } else {
-            nav("/");
-            }
-            }}
 
+              
+        onClick={() => {
+            if (step === 2) {
+              setStep(1);
+            } else if (step === 3) {
+              setStep(2);
+            } else {
+              nav("/");
+            }
+          }}
 
             
            className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
