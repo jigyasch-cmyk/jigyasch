@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, Phone, User, IndianRupee, CheckCircle2, Clock, PhoneCall, XCircle,
+  ArrowLeft, Phone, User, IndianRupee, CheckCircle2, Clock, PhoneCall, XCircle, 
   Bell, Navigation, Sparkles, Route as RouteIcon, Loader2, LocateFixed, Circle,
   Flag, Hash, CheckCircle, X, ChevronRight,
 } from "lucide-react";
@@ -338,8 +338,26 @@ export default function Customer() {
         <div className="flex items-center gap-3 p-4">
           <button
             data-testid="customer-back-btn"
-            onClick={() => (step > 1 && step < 4 ? setStep(step - 1) : nav("/"))}
-            className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
+
+            onClick={() => {
+            if (step === 4) {
+            nav("/");
+            } else if (step === 3) {
+            if (selectedVehicle) {
+            setStep(2);
+            } else {
+            setStep(1);
+            }
+            } else if (step === 2) {
+            setStep(1);
+            } else {
+            nav("/");
+            }
+            }}
+
+
+            
+           className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
