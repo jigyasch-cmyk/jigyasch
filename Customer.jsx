@@ -347,16 +347,7 @@ export default function Customer() {
             setStep(2);
 
               
-        onClick={() => {
-            if (step === 2) {
-              setStep(1);
-            } else if (step === 3) {
-              setStep(2);
-            } else {
-              nav("/");
-            }
-          }}
-
+        
             
            className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
           >
