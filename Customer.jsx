@@ -729,31 +729,29 @@ function PinCodeField({ value, onChange, busy, error, resolved }) {
   );
 }
 
-function Field({ icon, testid, value, onChange, ...rest }) {
-  return (
-    <div className="relative">
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">{icon}</div>
-      <input data-testid={testid} className="field pl-14" value={value} onChange={(e) => onChange(e.target.value)} {...rest} />
-    </div>
-  );
-}
-
 function PushEnableBanner({ subscriberKey }) {
   const [state, setState] = useState(pushPermission());
+
   if (!pushSupported() || state === "granted") return null;
+
   const enable = async () => {
     const r = await subscribeToPush(subscriberKey);
     setState(pushPermission());
+
     if (r.ok) toast.success("You'll get push updates for this booking");
-    else if (r.reason === "denied") toast.error("Notifications blocked in browser settings");
+    else if (r.reason === "denied") {
+      toast.error("Notifications blocked in browser settings");
+    }
   };
+
   return (
     <button
       data-testid="customer-enable-push-btn"
       onClick={enable}
       className="w-full flex items-center gap-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-semibold hover:bg-emerald-100"
     >
-      <Bell className="h-5 w-5" /> Enable push notifications for this booking
+      <Bell className="h-5 w-5" />
+      Enable push notifications for this booking
     </button>
   );
 }
