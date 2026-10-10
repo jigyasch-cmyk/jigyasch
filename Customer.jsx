@@ -352,6 +352,7 @@ export default function Customer() {
       </div>
     </div>;
   }
+  
 
   return (
     <div className="mobile-shell pb-24">
@@ -380,8 +381,7 @@ export default function Customer() {
           <div className="font-display font-bold text-lg">
               {step === 3 && "Pickup, Drop & Vehicle"}
               {step === 4 && "Booking status"}
-          </div>
-            
+            </div>
           </div>
         </div>
       </div>
