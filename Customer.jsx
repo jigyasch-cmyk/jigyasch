@@ -373,7 +373,7 @@ export default function Customer() {
   className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center"
 >
   <ArrowLeft className="h-5 w-5" />
-</button>
+ </button>
             
           <div>
 
