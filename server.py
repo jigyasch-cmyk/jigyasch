@@ -354,7 +354,7 @@ class VehicleCategoryCreate(BaseModel):
     name: str
     capacity: str = ""
     enabled: bool = True
-    image_file_id: optional[str] = None
+    image_file_id: Optional[str] = None
 
 class VehicleCategoryUpdate(BaseModel):
     name: Optional[str] = None
@@ -1222,7 +1222,7 @@ async def create_vehicle_category(
         "name": name,
         "capacity": payload.capacity.strip(),
         "enabled": payload.enabled,
-        "image file id": payload.image_file_id,
+        "image_file_id": payload.image_file_id,
         "created_at": now_iso(),
     }
 
@@ -1244,7 +1244,9 @@ async def create_vehicle_category(
     )
 
     category.pop("_id", None)
-    return category@api_router.patch("/admin/vehicle-categories/{category_id}")
+    return category
+    
+    @api_router.patch("/admin/vehicle-categories/{category_id}")
 async def update_vehicle_category(
     category_id: str,
     payload: VehicleCategoryUpdate,
