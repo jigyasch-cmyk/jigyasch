@@ -1245,8 +1245,7 @@ async def create_vehicle_category(
 
     category.pop("_id", None)
     return category
-    
-    @api_router.patch("/admin/vehicle-categories/{category_id}")
+@api_router.patch("/admin/vehicle-categories/{category_id}")
 async def update_vehicle_category(
     category_id: str,
     payload: VehicleCategoryUpdate,
