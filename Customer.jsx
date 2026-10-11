@@ -431,7 +431,9 @@ export default function Customer() {
               disabled={!pinArea}
               className={
                 "w-full flex items-center gap-3 rounded-xl border bg-white px-3 py-2.5 text-left transition " +
-                (pinArea ? "border-gray-200 hover:border-rose-400 active:scale-[0.997]" : "border-gray-200 opacity-60")
+                (pinArea 
+                  ? "border-gray-200 hover:border-rose-400 active:scale-[0.997]" 
+                  : "border-gray-200 opacity-60")
               }
             >
               <Flag className="h-4 w-4 text-rose-600 shrink-0" fill="#e11d48" />
