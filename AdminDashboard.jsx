@@ -14,6 +14,7 @@ function FaresView({ fares, onSave }) {
   const [categories, setCategories] = useState([]);
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState("");
+  const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const hdrs = {
@@ -47,16 +48,35 @@ function FaresView({ fares, onSave }) {
     setBusy(true);
 
     try {
-      await api.post(
-        "/admin/vehicle-categories",
-        {
-          name: clean,
-          capacity: capacity.trim(),
-          enabled: true
-        },
-        hdrs
-      );
 
+      
+if (!photo) {
+  toast.error("Please upload a vehicle photo");
+  return;
+}
+
+const fd = new FormData();
+fd.append("file", photo);
+
+const uploaded = await api.post("/upload", fd, hdrs);
+const imageId = uploaded.data?.id;
+
+if (!imageId) {
+  throw new Error("Photo upload failed");
+}
+
+await api.post(
+  "/admin/vehicle-categories",
+  {
+    name: name.trim(),
+    capacity: capacity.trim(),
+    enabled: true,
+    image_file_id: imageId,
+  },
+  hdrs
+);
+setPhoto(null);
+      
       toast.success("Vehicle category added");
 
       setName("");
@@ -109,6 +129,29 @@ function FaresView({ fares, onSave }) {
             maxLength={100}
           />
 
+<label className="block text-sm font-semibold">
+  Vehicle Photo
+  <input
+    className="field mt-2"
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    onChange={(e) =>
+      setPhoto(e.target.files?.[0] || null)
+    }
+  />
+</label>
+
+{photo && (
+  <img
+    src={URL.createObjectURL(photo)}
+    alt="Vehicle preview"
+    className="h-24 w-24 rounded-xl object-cover"
+  />
+)}
+
+
+
+          
           <button
             className="brand-btn"
             onClick={addCategory}
@@ -119,6 +162,13 @@ function FaresView({ fares, onSave }) {
         </div>
       </div>
 
+{c.image_file_id && (
+  <img
+    src={fileUrl(c.image_file_id)}
+    alt={c.name}
+    className="h-16 w-16 rounded-lg object-cover"
+  />
+)}
       {/* Fare Cards */}
       <div className="grid md:grid-cols-2 gap-3">
         {categories.map((category) => {
