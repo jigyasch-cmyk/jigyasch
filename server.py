@@ -360,7 +360,7 @@ class VehicleCategoryUpdate(BaseModel):
     name: Optional[str] = None
     capacity: Optional[str] = None
     enabled: Optional[bool] = None
-    image_file_id: optional[str] = None
+    image_file_id: Optional[str] = None
 
 
 class ManagerFareUpdate(BaseModel):
