@@ -6,7 +6,7 @@ import {
   Flag, Hash, X, ChevronRight, Bell,
 } from "lucide-react";
 import { toast } from "sonner";
-import api, { wsUrl } from "@/lib/api";
+import api, { wsUrl, fileUrl } from "@/lib/api";
 import { subscribeToPush, pushSupported, pushPermission } from "@/lib/push";
 import { getCurrentPosition, watchPosition, isGeoSupported } from "@/lib/geo";
 import BookingMap from "@/components/BookingMap";
@@ -509,8 +509,16 @@ export default function Customer() {
                 onClick={() => chooseCategory(type)}
                 className={"w-full flex items-center gap-3 rounded-2xl border p-3 text-left transition " +
                   (vehicleType === type ? "border-emerald-600 bg-emerald-50" : "border-gray-200 bg-white hover:border-emerald-500")}>
-                <img src={meta?.img || VEHICLE_META["Tata Ace"].img} alt={type}
-                  className="h-16 w-16 rounded-xl object-cover" />
+                
+<img
+  src={
+    category.image_file_id
+      ? fileUrl(category.image_file_id)
+      : meta?.img || VEHICLE_META["Tata Ace"].img
+  }
+  alt={type}
+  className="h-16 w-16 rounded-xl object-cover"
+/>                
                 <div className="flex-1 min-w-0">
                   <div className="font-display font-bold text-lg">{type}</div>
                   <div className="text-sm text-gray-500">{category.capacity || meta?.capacity || "Capacity not specified"}</div>
