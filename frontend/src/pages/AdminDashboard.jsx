@@ -519,7 +519,9 @@ function FaresView({ fares, onSave, onRefresh }) {
   const [categories, setCategories] = useState([]);
   const [name, setName] = useState("");
   const [capacity, setCapacity] = useState("");
-
+  const [photo, setPhoto] = useState(null);
+  
+  const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [editCapacity, setEditCapacity] = useState("");
@@ -681,13 +683,29 @@ function FaresView({ fares, onSave, onRefresh }) {
           Add Vehicle Category
         </h2>
 
-        <div className="grid md:grid-cols-3 gap-2 mt-3">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-2 mt-3">
           <input
             className="field"
             placeholder="Vehicle category name"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+<label className="block text-sm font-semibold">
+  Vehicle Photo
+  <input
+    className="field mt-2"
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    onChange={(e) => setPhoto(e.target.files?.[0] || null)}
+  />
+  {photo && (
+    <img
+      src={URL.createObjectURL(photo)}
+      alt="Vehicle preview"
+      className="mt-2 h-20 w-20 rounded-lg object-cover"
+    />
+  )}
+</label>
 
           <input
             className="field"
@@ -696,12 +714,15 @@ function FaresView({ fares, onSave, onRefresh }) {
             onChange={(e) => setCapacity(e.target.value)}
           />
 
-          <button
-            className="brand-btn"
-            onClick={addCategory}
-          >
-            + Add Vehicle Category
-          </button>
+          
+<button
+  className="brand-btn"
+  onClick={addCategory}
+  disabled={uploading}
+>
+  {uploading ? "Uploading..." : "+ Add Vehicle Category"}
+</button>
+                    
         </div>
       </div>
 
