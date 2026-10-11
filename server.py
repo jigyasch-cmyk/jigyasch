@@ -3122,19 +3122,37 @@ async def route(payload: RouteIn):
         'method': method,
         'geometry': geometry,
     }
+
+
+    
     if payload.vehicle_type:
-        if payload.vehicle_type not in VEHICLE_TYPES:
-            raise HTTPException(400, 'Invalid vehicle type')
-        cfg = await db.fare_settings.find_one({'vehicle_type': payload.vehicle_type})
+        category = await db.vehicle_categories.find_one({
+            "name": payload.vehicle_type,
+            "enabled": True,
+        })
+
+        if (
+            payload.vehicle_type not in VEHICLE_TYPES
+            and not category
+        ):
+            raise HTTPException(400, "Invalid vehicle type")
+
+        cfg = await db.fare_settings.find_one({
+            "vehicle_type": payload.vehicle_type
+        })
+
         if cfg:
-            base = float(cfg['base_fare'])
-            per_km = float(cfg['per_km'])
+            base = float(cfg.get("base_fare", 0))
+            per_km = float(cfg.get("per_km", 0))
+
             resp.update({
-                'vehicle_type': payload.vehicle_type,
-                'base_fare': base,
-                'per_km': per_km,
-                'fare': round(base + per_km * distance_km, 2),
-            })
+                "vehicle_type": payload.vehicle_type,
+                "base_fare": base,
+                "per_km": per_km,
+                "fare": round(
+                    base + per_km * distance_km, 2
+                ),
+            })    
     return resp
 
 
