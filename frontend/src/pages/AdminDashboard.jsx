@@ -542,35 +542,55 @@ function FaresView({ fares, onSave, onRefresh }) {
   }, []);
 
   const addCategory = async () => {
-    if (!name.trim()) {
-      return toast.error("Vehicle category name is required");
+  if (!name.trim()) {
+    return toast.error("Vehicle category name is required");
+  }
+
+  if (!photo) {
+    return toast.error("Please upload a vehicle photo");
+  }
+
+  setUploading(true);
+
+  try {
+    const fd = new FormData();
+    fd.append("file", photo);
+
+    const uploaded = await api.post("/upload", fd, hdrs);
+    const imageId = uploaded.data?.id;
+
+    if (!imageId) {
+      throw new Error("Photo upload failed");
     }
 
-    try {
-      await api.post(
-        "/admin/vehicle-categories",
-        {
-          name: name.trim(),
-          capacity: capacity.trim(),
-          enabled: true,
-        },
-        hdrs
-      );
+    await api.post(
+      "/admin/vehicle-categories",
+      {
+        name: name.trim(),
+        capacity: capacity.trim(),
+        enabled: true,
+        image_file_id: imageId,
+      },
+      hdrs
+    );
 
-      toast.success("Vehicle category added");
+    toast.success("Vehicle category added");
+    setName("");
+    setCapacity("");
+    setPhoto(null);
 
-      setName("");
-      setCapacity("")
-
-      await loadCategories();
-      await onRefresh();
-    } catch (e) {
-      toast.error(
-        e.response?.data?.detail || "Failed to add vehicle category"
-      );
-    }
-  };
-
+    await loadCategories();
+    await onRefresh();
+  } catch (e) {
+    toast.error(
+      e.response?.data?.detail ||
+      e.message ||
+      "Failed to add vehicle category"
+    );
+  } finally {
+    setUploading(false);
+  }
+};
   const startEdit = (category) => {
     setEditingId(category.id);
     setEditName(category.name);
