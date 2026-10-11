@@ -74,15 +74,52 @@ export default function Customer() {
     } catch {}
     // Request location permission as soon as Customer opens. If allowed, cache
     // the GPS coordinates so the booking screen can use them as the default pickup.
-    getCurrentPosition()
-      .then((c) => {
-        const current = { lat: Number(c.lat), lng: Number(c.lng), accuracy: c.accuracy };
-        setUserLocation(current);
-      })
-      .catch(() => {
-        // If permission is denied, the customer can still choose a common pickup place.
-      });
-    api.get("/fare-settings").then((r) => setFares(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+
+
+getCurrentPosition()
+  .then(async (c) => {
+    const current = {
+      lat: Number(c.lat),
+      lng: Number(c.lng),
+      accuracy: c.accuracy,
+    };
+
+    setUserLocation(current);
+
+    setPickup((previous) => {
+      if (previous) return previous;
+
+      return {
+        lat: current.lat,
+        lng: current.lng,
+        display_name: "Current location",
+        id: null,
+        source: "gps",
+      };
+    });
+
+    try {
+      const r = await api.get(
+        `/reverse-geocode?lat=${current.lat}&lng=${current.lng}`
+      );
+
+      if (r.data?.display_name) {
+        setPickup((previous) => {
+          if (previous?.source !== "gps") return previous;
+          return {
+            ...previous,
+            display_name: r.data.display_name,
+          };
+        });
+      }
+    } catch {
+      // GPS pickup remains selected if address lookup fails.
+    }
+  })
+  .catch(() => {
+    // Permission denied: manual pickup remains available.
+  });
+        api.get("/fare-settings").then((r) => setFares(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     api.get("/vehicle-categories")
       .then((r) => {
         const data = Array.isArray(r.data) ? r.data : [];
@@ -154,27 +191,52 @@ export default function Customer() {
   };
 
 
-  useEffect(() => {
-    if (!onboardingDone || step !== 1 || !isGeoSupported()) return;
-    const stop = watchPosition(async (c) => {
-      const current = { lat: Number(c.lat), lng: Number(c.lng), accuracy: c.accuracy };
-      setUserLocation(current);
-      // Use device GPS as the default pickup until the customer manually selects a common place.
-      if (!gpsAppliedRef.current) {
-        let display_name = "Current location";
-        try {
-          const r = await api.get(`/reverse-geocode?lat=${current.lat}&lng=${current.lng}`);
-          display_name = r.data?.display_name || display_name;
-        } catch {}
-        if (!gpsAppliedRef.current) {
-          setPickup({ lat: current.lat, lng: current.lng, display_name, id: null, source: "gps" });
-        }
-      }
-    }, () => {});
-    return () => { if (typeof stop === "function") stop(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onboardingDone, step]);
+useEffect(() => {
+  if (!onboardingDone || step !== 1 || !isGeoSupported()) return;
 
+  const stop = watchPosition(async (c) => {
+    const current = {
+      lat: Number(c.lat),
+      lng: Number(c.lng),
+      accuracy: c.accuracy,
+    };
+
+    setUserLocation(current);
+
+    if (gpsAppliedRef.current) return;
+
+    setPickup((previous) => {
+      if (previous && previous.source !== "gps") return previous;
+
+      return {
+        lat: current.lat,
+        lng: current.lng,
+        display_name: previous?.display_name || "Current location",
+        id: null,
+        source: "gps",
+      };
+    });
+
+    try {
+      const r = await api.get(
+        `/reverse-geocode?lat=${current.lat}&lng=${current.lng}`
+      );
+
+      if (r.data?.display_name && !gpsAppliedRef.current) {
+        setPickup((previous) => {
+          if (previous?.source !== "gps") return previous;
+          return { ...previous, display_name: r.data.display_name };
+        });
+      }
+    } catch {}
+  }, () => {});
+
+  return () => {
+    if (typeof stop === "function") stop();
+  };
+}, [onboardingDone, step]);
+
+  
   const recenter = async () => {
     try {
       const c = userLocation || await getCurrentPosition();
