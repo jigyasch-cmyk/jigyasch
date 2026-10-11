@@ -354,11 +354,14 @@ class VehicleCategoryCreate(BaseModel):
     name: str
     capacity: str = ""
     enabled: bool = True
+    image_file_id: optional[str] = None
 
 class VehicleCategoryUpdate(BaseModel):
     name: Optional[str] = None
     capacity: Optional[str] = None
-    enabled: Optional[bool] = None 
+    enabled: Optional[bool] = None
+    image_file_id: optional[str] = None
+
 
 class ManagerFareUpdate(BaseModel):
     base_fare: float
@@ -1219,6 +1222,7 @@ async def create_vehicle_category(
         "name": name,
         "capacity": payload.capacity.strip(),
         "enabled": payload.enabled,
+        "image file id": payload.image_file_id,
         "created_at": now_iso(),
     }
 
@@ -1272,8 +1276,8 @@ async def update_vehicle_category(
     if payload.capacity is not None:
         update["capacity"] = payload.capacity.strip()
 
-    if payload.enabled is not None:
-        update["enabled"] = payload.enabled
+    if payload.image_file_id is not None:
+        update["image_file_id"] = payload.image_file_id
 
     if not update:
         raise HTTPException(400, "Nothing to update")
