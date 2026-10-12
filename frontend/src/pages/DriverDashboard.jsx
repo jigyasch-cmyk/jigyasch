@@ -219,16 +219,46 @@ const logout = async () => {
             )}
             {pending.length > 0 && <SectionTitle title="New Requests" />}
             {pending.map((b) => (
-              <BookingCard key={b.id} b={b}>
-                <div className="flex gap-2 mt-3">
-                  <button data-testid={`booking-accept-${b.id}`} onClick={() => actBooking(b.id, "accept")} className="brand-btn flex-1 h-11">
-                    <CheckCircle2 className="h-5 w-5 mr-1" /> Accept
-                  </button>
-                  <button data-testid={`booking-reject-${b.id}`} onClick={() => actBooking(b.id, "reject")} className="h-11 flex-1 rounded-xl border-2 border-rose-500 text-rose-600 font-semibold hover:bg-rose-50">
-                    <XCircle className="h-5 w-5 mr-1 inline" /> Reject
-                  </button>
-                </div>
-              </BookingCard>
+<BookingCard key={b.id} b={b}>
+  <div className="flex gap-2 mt-3">
+    <button
+      data-testid={`booking-accept-${b.id}`}
+      onClick={() => actBooking(b.id, "accept")}
+      disabled={
+        Boolean(
+          b.request_expires_at &&
+          new Date(b.request_expires_at).getTime() <= Date.now()
+        )
+      }
+      className="brand-btn flex-1 h-11 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <CheckCircle2 className="h-5 w-5 mr-1" />
+      Accept
+    </button>
+
+    <button
+      data-testid={`booking-reject-${b.id}`}
+      onClick={() => actBooking(b.id, "reject")}
+      disabled={
+        Boolean(
+          b.request_expires_at &&
+          new Date(b.request_expires_at).getTime() <= Date.now()
+        )
+      }
+      className="h-11 flex-1 rounded-xl border-2 border-rose-500 text-rose-600 font-semibold hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <XCircle className="h-5 w-5 mr-1 inline" />
+      Reject
+    </button>
+  </div>
+</BookingCard>
+
+
+            
+
+
+
+            
             ))}
             {active.length > 0 && <SectionTitle title="Active Trips" />}
             {active.map((b) => (
@@ -543,40 +573,6 @@ function StatusChip({ status }) {
   return <span className={`chip ${map[status] || "bg-gray-100 text-gray-700"}`}>{status}</span>;
 }
 
-function BookingCard({ b, children }) {
-  const [remaining, setRemaining] = useState(() => b.request_expires_at ? Math.max(0, Math.ceil((new Date(b.request_expires_at).getTime()-Date.now())/1000)) : null);
-  useEffect(() => { if (b.status !== "requested" || !b.request_expires_at) return; const t=setInterval(()=>setRemaining(Math.max(0,Math.ceil((new Date(b.request_expires_at).getTime()-Date.now())/1000))),250); return()=>clearInterval(t); },[b.status,b.request_expires_at]);
-  return (
-    <div className="card" data-testid={`booking-card-${b.id}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="font-display font-bold">
-          {b.vehicle_type}{b.plate_no ? ` • ${b.plate_no}` : ""}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {b.is_broadcast && (
-            <span data-testid={`broadcast-chip-${b.id}`} className="chip bg-indigo-100 text-indigo-700">
-              Broadcast
-            </span>
-          )}
-          <StatusChip status={b.status} />
-        </div>
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-        <div><span className="text-gray-500">From:</span> <b>{b.pickup}</b></div>
-        <div><span className="text-gray-500">To:</span> <b>{b.drop_location}</b></div>
-        <div><span className="text-gray-500">Distance:</span> <b>{b.distance_km} km</b></div>
-        <div><span className="text-gray-500">Fare:</span> <b className="text-emerald-700">₹{b.fare}</b></div>
-      </div>
-      <div className="mt-1 text-xs text-gray-500">Customer: {b.customer_name} • {b.customer_mobile}</div>
-      {b.status === "requested" && b.request_expires_at && <div className={`mt-2 text-sm font-bold ${remaining > 10 ? "text-amber-700" : "text-rose-700"}`}>⏱️ Accept within {remaining}s</div>}
-      <div className="mt-1 text-xs text-gray-400">
-        Commission: ₹{b.commission}
-        {b.is_broadcast && b.broadcast_count ? ` • Broadcast to ${b.broadcast_count} drivers — first to accept wins` : ""}
-      </div>
-      {children}
-    </div>
-  );
-}
 
 function ActiveTripCard({ b, onTrip }) {
   const [state, setState] = useState(null); const [geometry,setGeometry]=useState(null);
@@ -589,6 +585,128 @@ function ActiveTripCard({ b, onTrip }) {
   useEffect(()=>{ const from=stage==="in_trip"?pickup:driver; const to=stage==="in_trip"?drop:customer||pickup; if(!from||!to)return; api.post('/route',{pickup_lat:from.lat,pickup_lng:from.lng,drop_lat:to.lat,drop_lng:to.lng,vehicle_type:b.vehicle_type}).then(r=>setGeometry(r.data.geometry)).catch(()=>{}); },[stage,driver?.lat,driver?.lng,customer?.lat,customer?.lng,pickup?.lat,drop?.lat]);
   return <BookingCard b={b}><div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm">Customer: <b>{b.customer_name}</b> — <a href={`tel:${b.customer_mobile}`} className="text-emerald-700 font-bold">{b.customer_mobile}</a></div><LiveTripMap pickup={pickup} drop={drop} driverLocation={driver} customerLocation={customer} geometry={geometry} stage={stage}/>{stage !== "in_trip" && <button onClick={()=>onTrip(b.id,"reach_pickup")} className="brand-btn w-full mt-3">🟢 Mark Reached Pickup</button>}{stage !== "in_trip" && <div className="text-xs text-gray-500 mt-2 text-center">Customer will press Start Trip after you arrive.</div>}{stage === "in_trip" && <button onClick={()=>onTrip(b.id,"end")} className="brand-btn w-full mt-3">⏹️ End Trip</button>}</BookingCard>;
 }
+
+
+function BookingCard({ b, children }) {
+  const [remaining, setRemaining] = useState(() =>
+    b.request_expires_at
+      ? Math.max(
+          0,
+          Math.ceil(
+            (new Date(b.request_expires_at).getTime() - Date.now()) / 1000
+          )
+        )
+      : null
+  );
+
+  useEffect(() => {
+    if (b.status !== "requested" || !b.request_expires_at) return;
+
+    const updateTimer = () => {
+      setRemaining(
+        Math.max(
+          0,
+          Math.ceil(
+            (new Date(b.request_expires_at).getTime() - Date.now()) / 1000
+          )
+        )
+      );
+    };
+
+    updateTimer();
+    const timer = setInterval(updateTimer, 250);
+
+    return () => clearInterval(timer);
+  }, [b.status, b.request_expires_at]);
+
+  const expired =
+    b.status === "requested" &&
+    b.request_expires_at &&
+    remaining !== null &&
+    remaining <= 0;
+
+  return (
+    <div className="card" data-testid={`booking-card-${b.id}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-display font-bold">
+          {b.vehicle_type}
+          {b.plate_no ? ` • ${b.plate_no}` : ""}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {b.is_broadcast && (
+            <span className="chip bg-indigo-100 text-indigo-700">
+              Broadcast
+            </span>
+          )}
+          <StatusChip status={b.status} />
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-3 text-sm">
+        <div>
+          <div className="text-gray-500">Customer name</div>
+          <b>{b.customer_name || "Customer"}</b>
+        </div>
+
+        <div>
+          <div className="text-gray-500">Pickup location</div>
+          <b>{b.pickup || "Not available"}</b>
+        </div>
+
+        <div>
+          <div className="text-gray-500">Drop location</div>
+          <b>{b.drop_location || "Not available"}</b>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="text-gray-500">Vehicle type</div>
+            <b>{b.vehicle_type}</b>
+          </div>
+
+          <div>
+            <div className="text-gray-500">Road distance</div>
+            <b>{b.distance_km} km</b>
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+          <div className="text-xs text-emerald-700">Estimated fare</div>
+          <div className="text-xl font-bold text-emerald-800">
+            ₹{b.fare}
+          </div>
+        </div>
+      </div>
+
+      {b.status === "requested" && b.request_expires_at && (
+        <div
+          className={`mt-3 text-sm font-bold ${
+            expired
+              ? "text-rose-700"
+              : remaining > 10
+              ? "text-amber-700"
+              : "text-rose-700"
+          }`}
+        >
+          {expired
+            ? "Request expired"
+            : `⏱️ Accept within ${remaining}s`}
+        </div>
+      )}
+
+      <div className="mt-2 text-xs text-gray-400">
+        Commission: ₹{b.commission}
+        {b.is_broadcast && b.broadcast_count
+          ? ` • Sent to ${b.broadcast_count} eligible drivers`
+          : ""}
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
 
 function AddVehicleDialog({ open, onOpenChange, onAdded }) {
   const [vehicleCategories, setVehicleCategories] = useState([]);
