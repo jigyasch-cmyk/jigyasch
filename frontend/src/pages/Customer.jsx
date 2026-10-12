@@ -115,11 +115,15 @@ getCurrentPosition()
     } catch {
       // GPS pickup remains selected if address lookup fails.
     }
+
   })
-  .catch(() => {
-    // Permission denied: manual pickup remains available.
-  });
-        api.get("/fare-settings").then((r) => setFares(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+  .catch((e) => {
+    toast.error(
+      e?.message ||
+      "Location unavailable. Allow GPS permission or select pickup manually."
+    );
+  });  
+          api.get("/fare-settings").then((r) => setFares(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     api.get("/vehicle-categories")
       .then((r) => {
         const data = Array.isArray(r.data) ? r.data : [];
@@ -319,18 +323,25 @@ useEffect(() => {
     if (!fareCfg) return toast.error("Fare for this category is not configured by Admin");
     setLoading(true);
     try {
-      const r = await api.post("/customer/bookings/auto", {
-        vehicle_type: vehicleType,
-        customer_name: form.name.trim(),
-        customer_mobile: form.mobile,
-        pickup: pickup.display_name,
-        drop_location: drop.display_name,
-        drop_place_id: drop.id,
-        distance_km: routeMeta.distance_km,
-        pickup_lat: pickup.lat,
-        pickup_lng: pickup.lng,
-      });
-      setBooking(r.data);
+
+
+  const r = await api.post("/customer/bookings/auto", {
+    vehicle_type: vehicleType,
+    customer_name: form.name.trim(),
+    customer_mobile: form.mobile,
+    pickup: pickup.display_name,
+    drop_location: drop.display_name,
+    drop_place_id: drop.id,
+    distance_km: routeMeta.distance_km,
+    pickup_lat: pickup.lat,
+    pickup_lng: pickup.lng,
+    pickup_pin: String(
+      pincode ||
+  localStorage.getItem("avsgo_customer_pickup_pin") ||
+      ""
+   ).trim(),
+  });
+            setBooking(r.data);
       try {
         localStorage.setItem("avsgo_customer_profile", JSON.stringify({
           name: form.name.trim(), mobile: form.mobile,
