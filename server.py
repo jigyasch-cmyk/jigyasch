@@ -1754,9 +1754,16 @@ async def auto_create_booking(payload: BookingAutoCreate):
     await validate_pickup_pin(payload.pickup_pin)
     if payload.distance_km <= 0:
         raise HTTPException(400, 'Distance must be greater than 0')
-    if payload.vehicle_type not in VEHICLE_TYPES:
-        raise HTTPException(400, 'Invalid vehicle type')
-    mobile = payload.customer_mobile.strip()
+
+
+category = await db.vehicle_categories.find_one({
+    "name": payload.vehicle_type,
+    "enabled": True,
+})
+
+if payload.vehicle_type not in VEHICLE_TYPES and not category:
+    raise HTTPException(400, "Invalid vehicle type")
+        mobile = payload.customer_mobile.strip()
     if len(mobile) != 10 or not mobile.isdigit():
         raise HTTPException(400, 'Enter a valid 10-digit mobile')
     if not (-90 <= payload.pickup_lat <= 90 and -180 <= payload.pickup_lng <= 180):
