@@ -4,7 +4,13 @@ import { LogOut, Plus, Car, Package, IndianRupee, Bell, CheckCircle2, XCircle, C
 import { toast } from "sonner";
 import api, { fileUrl, API, wsUrl } from "@/lib/api";
 import { subscribeToPush, pushSupported, pushPermission } from "@/lib/push";
-import { watchPosition, isGeoSupported, checkGeoPermission } from "@/lib/geo";
+
+import {
+  getCurrentPosition,
+  watchPosition,
+  isGeoSupported,
+  checkGeoPermission,
+} from "@/lib/geo";
 import NotificationBell from "@/components/NotificationBell";
 import LiveTripMap from "@/components/LiveTripMap";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
@@ -408,6 +414,72 @@ function LocationSharingCard({ driverId }) {
     rose: "bg-rose-100 text-rose-700 border-rose-200",
     gray: "bg-gray-100 text-gray-700 border-gray-200",
   };
+
+  const handleLocationToggle = async () => {
+  if (enabled) {
+    setEnabled(false);
+
+    try {
+      await api.patch(
+        "/driver/online",
+        { available: false },
+        { headers: { "x-role": "driver" } }
+      );
+    } catch (e) {
+      toast.error("Unable to stop location sharing");
+    }
+
+    return;
+  }
+
+  if (!isGeoSupported()) {
+    setStatus("unsupported");
+    toast.error("Location is not supported on this device");
+    return;
+  }
+
+  setStatus("requesting");
+
+  try {
+    // Request permission and get GPS immediately
+    const coords = await getCurrentPosition();
+
+    // Send the first GPS location to backend
+    await api.post("/driver/location", coords, {
+      headers: { "x-role": "driver" },
+    });
+
+    // Enable driver online status
+    await api.patch(
+      "/driver/online",
+      { available: true },
+      { headers: { "x-role": "driver" } }
+    );
+
+    setLastPos(coords);
+    setLastAt(new Date().toISOString());
+    setPermState("granted");
+    setEnabled(true);
+
+    toast.success("Location sharing enabled");
+  } catch (e) {
+    setEnabled(false);
+    localStorage.setItem(LOC_KEY, "off");
+
+    const message =
+      e.code === 1 ||
+      e.code === "denied" ||
+      /permission/i.test(e.message || "")
+        ? "Location permission denied. Please allow location access."
+        : e.message || "Unable to get location. Check GPS and try again.";
+
+    setStatus(
+      /permission/i.test(message) ? "denied" : "error"
+    );
+
+    toast.error(message);
+  }
+};
 
   return (
     <div className="px-5 pt-4">
