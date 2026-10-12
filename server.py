@@ -1752,25 +1752,29 @@ async def update_customer_location(payload: CustomerLocationIn):
 @api_router.post("/customer/bookings/auto")
 async def auto_create_booking(payload: BookingAutoCreate):
     await validate_pickup_pin(payload.pickup_pin)
+
     if payload.distance_km <= 0:
-        raise HTTPException(400, 'Distance must be greater than 0')
+        raise HTTPException(400, "Distance must be greater than 0")
 
+    category = await db.vehicle_categories.find_one({
+        "name": payload.vehicle_type,
+        "enabled": True,
+    })
 
-category = await db.vehicle_categories.find_one({
-    "name": payload.vehicle_type,
-    "enabled": True,
-})
+    if payload.vehicle_type not in VEHICLE_TYPES and not category:
+        raise HTTPException(400, "Invalid vehicle type")
 
-if payload.vehicle_type not in VEHICLE_TYPES and not category:
-    raise HTTPException(400, "Invalid vehicle type")
-        mobile = payload.customer_mobile.strip()
+    mobile = payload.customer_mobile.strip()
     if len(mobile) != 10 or not mobile.isdigit():
-        raise HTTPException(400, 'Enter a valid 10-digit mobile')
+        raise HTTPException(400, "Enter a valid 10-digit mobile")
+
     if not (-90 <= payload.pickup_lat <= 90 and -180 <= payload.pickup_lng <= 180):
-        raise HTTPException(400, 'Invalid pickup coordinates')
+        raise HTTPException(400, "Invalid pickup coordinates")
 
-    drop_place = await validate_customer_drop_place(payload.drop_place_id, payload.drop_location)
-
+    drop_place = await validate_customer_drop_place(
+        payload.drop_place_id,
+        payload.drop_location,
+    )
     # Persist/refresh the customer profile in the backend DB (not only localStorage).
     await db.customers.update_one(
         {'mobile': mobile},
