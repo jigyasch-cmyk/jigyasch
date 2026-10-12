@@ -76,53 +76,57 @@ export default function Customer() {
     // the GPS coordinates so the booking screen can use them as the default pickup.
 
 
-getCurrentPosition()
-  .then(async (c) => {
-    const current = {
-      lat: Number(c.lat),
-      lng: Number(c.lng),
-      accuracy: c.accuracy,
-    };
+    getCurrentPosition()
+      .then(async (c) => {
+        const current = {
+          lat: Number(c.lat),
+          lng: Number(c.lng),
+          accuracy: c.accuracy,
+        };
 
-    setUserLocation(current);
+        setUserLocation(current);
 
-    setPickup((previous) => {
-      if (previous) return previous;
-
-      return {
-        lat: current.lat,
-        lng: current.lng,
-        display_name: "Current location",
-        id: null,
-        source: "gps",
-      };
-    });
-
-    try {
-      const r = await api.get(
-        `/reverse-geocode?lat=${current.lat}&lng=${current.lng}`
-      );
-
-      if (r.data?.display_name) {
         setPickup((previous) => {
-          if (previous?.source !== "gps") return previous;
+          // Keep a manually selected pickup.
+          if (previous && previous.source !== "gps") {
+            return previous;
+          }
+
           return {
-            ...previous,
-            display_name: r.data.display_name,
+            lat: current.lat,
+            lng: current.lng,
+            display_name: "Current location",
+            id: null,
+            source: "gps",
           };
         });
-      }
-    } catch {
-      // GPS pickup remains selected if address lookup fails.
-    }
 
-  })
-  .catch((e) => {
-    toast.error(
-      e?.message ||
-      "Location unavailable. Allow GPS permission or select pickup manually."
-    );
-  });  
+        try {
+          const r = await api.get(
+            `/reverse-geocode?lat=${current.lat}&lng=${current.lng}`
+          );
+
+          if (r.data?.display_name) {
+            setPickup((previous) => {
+              if (previous?.source !== "gps") return previous;
+
+              return {
+                ...previous,
+                display_name: r.data.display_name,
+              };
+            });
+          }
+        } catch {
+          // Keep GPS coordinates even if address lookup fails.
+        }
+      })
+      .catch((e) => {
+        toast.error(
+          e?.message ||
+            "Location unavailable. Allow GPS permission or select pickup manually."
+        );
+      });
+
           api.get("/fare-settings").then((r) => setFares(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     api.get("/vehicle-categories")
       .then((r) => {
