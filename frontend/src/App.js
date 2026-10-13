@@ -1,42 +1,51 @@
 import "@/App.css";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 
-import Landing from "@/pages/Landing";
-import Customer from "@/pages/Customer";
-import DriverAuth from "@/pages/DriverAuth";
-import DriverDashboard from "@/pages/DriverDashboard";
-import AdminLogin from "@/pages/AdminLogin";
-import AdminDashboard from "@/pages/AdminDashboard";
-import ManagerLogin from "@/pages/ManagerLogin";
-import ManagerDashboard from "@/pages/ManagerDashboard";
+const Landing = lazy(() => import("@/pages/Landing"));
+const Customer = lazy(() => import("@/pages/Customer"));
+const DriverAuth = lazy(() => import("@/pages/DriverAuth"));
+const DriverDashboard = lazy(() => import("@/pages/DriverDashboard"));
+const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
+const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
+const ManagerLogin = lazy(() => import("@/pages/ManagerLogin"));
+const ManagerDashboard = lazy(() => import("@/pages/ManagerDashboard"));
 
 function DriverGate({ children }) {
   const token = localStorage.getItem("avsgo_driver_token");
-
   return token ? children : <Navigate to="/driver/register" replace />;
 }
 
 function AdminGate({ children }) {
   const token = localStorage.getItem("avsgo_admin_token");
-
   return token ? children : <Navigate to="/admin/login" replace />;
 }
 
 function ManagerGate({ children }) {
   const token = localStorage.getItem("avsgo_manager_token");
-
   return token ? children : <Navigate to="/manager/login" replace />;
 }
 
 function DriverEntry() {
   const token = localStorage.getItem("avsgo_driver_token");
+  return token ? (
+    <Navigate to="/driver" replace />
+  ) : (
+    <DriverAuth />
+  );
+}
 
-  if (token) {
-    return <Navigate to="/driver" replace />;
-  }
-
-  return <DriverAuth />;
+function PageLoading() {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center bg-white text-sm text-gray-600"
+      role="status"
+      aria-live="polite"
+    >
+      AvSGo loading...
+    </div>
+  );
 }
 
 export default function App() {
@@ -44,50 +53,47 @@ export default function App() {
     <BrowserRouter>
       <Toaster position="top-center" richColors />
 
-      <Routes>
-        <Route path="/" element={<Landing />} />
+      <Suspense fallback={<PageLoading />}>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/customer" element={<Customer />} />
 
-        <Route path="/customer" element={<Customer />} />
+          <Route path="/driver/register" element={<DriverEntry />} />
 
-        {/* Driver registration / saved driver entry */}
-        <Route path="/driver/register" element={<DriverEntry />} />
+          <Route
+            path="/driver"
+            element={
+              <DriverGate>
+                <DriverDashboard />
+              </DriverGate>
+            }
+          />
 
-        {/* Driver panel */}
-        <Route
-          path="/driver"
-          element={
-            <DriverGate>
-              <DriverDashboard />
-            </DriverGate>
-          }
-        />
+          <Route path="/admin/login" element={<AdminLogin />} />
 
-        {/* Admin */}
-        <Route path="/admin/login" element={<AdminLogin />} />
+          <Route
+            path="/admin"
+            element={
+              <AdminGate>
+                <AdminDashboard />
+              </AdminGate>
+            }
+          />
 
-        <Route
-          path="/admin"
-          element={
-            <AdminGate>
-              <AdminDashboard />
-            </AdminGate>
-          }
-        />
+          <Route path="/manager/login" element={<ManagerLogin />} />
 
-        {/* Manager */}
-        <Route path="/manager/login" element={<ManagerLogin />} />
+          <Route
+            path="/manager"
+            element={
+              <ManagerGate>
+                <ManagerDashboard />
+              </ManagerGate>
+            }
+          />
 
-        <Route
-          path="/manager"
-          element={
-            <ManagerGate>
-              <ManagerDashboard />
-            </ManagerGate>
-          }
-        />
-
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }
