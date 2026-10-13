@@ -723,3 +723,113 @@ export default function ManagerAdminView() {
           )}
 
           <div className="flex flex-wrap gap-2">
+
+            <button
+          type="button"
+          className="brand-btn"
+          onClick={save}
+          disabled={saving}
+        >
+          {saving
+            ? "Saving..."
+            : editing
+            ? "Save Permissions"
+            : "Save Manager"}
+        </button>
+
+        <button
+          type="button"
+          className="h-10 px-4 rounded-lg bg-gray-100"
+          onClick={() => {
+            setShow(false);
+            setEditing(null);
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )}
+
+  <div className="card overflow-x-auto">
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left text-gray-500">
+          <th className="py-2">Manager</th>
+          <th>Manager ID</th>
+          <th>Pickup PIN(s)</th>
+          <th>Commission</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {rows.map((manager) => (
+          <tr key={manager.id} className="border-t">
+            <td className="py-3">
+              {manager.name}
+              <div className="text-xs text-gray-400">
+                {manager.mobile}
+              </div>
+            </td>
+
+            <td>{manager.manager_id}</td>
+            <td>{(manager.pickup_pins || []).join(", ")}</td>
+            <td>{manager.commission_pct}%</td>
+
+            <td>
+              {manager.resigned
+                ? "Resigned"
+                : manager.active
+                ? "Active"
+                : "Inactive"}
+            </td>
+
+            <td className="py-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="h-9 px-3 rounded-lg bg-blue-50 text-blue-700"
+                  onClick={() => openEdit(manager)}
+                >
+                  <Pencil className="h-4 w-4 inline" /> Permissions
+                </button>
+
+                <button
+                  type="button"
+                  className="h-9 px-3 rounded-lg bg-gray-100"
+                  onClick={() => toggle(manager)}
+                >
+                  <Power className="h-4 w-4 inline" />{" "}
+                  {manager.active ? "Disable" : "Enable"}
+                </button>
+
+                {!manager.resigned && (
+                  <button
+                    type="button"
+                    className="h-9 px-3 rounded-lg bg-rose-50 text-rose-700"
+                    onClick={() => resign(manager)}
+                  >
+                    <UserRoundCheck className="h-4 w-4 inline" /> Resign
+                  </button>
+                )}
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+
+    {!rows.length && (
+      <div className="text-gray-500 py-4">
+        No managers yet.
+      </div>
+    )}
+  </div>
+</div>
+
+);
+}
+
+ 
