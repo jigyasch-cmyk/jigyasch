@@ -1,146 +1,190 @@
-/**
- * Geolocation helpers for AvSGo.
- * Browser/PWA and Capacitor Android compatible.
+ /**
+ * AvSGo Geolocation — Android APK + Browser/PWA
  */
+import { Capacitor } from "@capacitor/core";
+import { Geolocation } from "@capacitor/geolocation";
+
 const DEFAULT_OPTS = {
   enableHighAccuracy: true,
-  timeout: 12000,
-  maximumAge: 20000,
+  timeout: 20000,
+  maximumAge: 0,
 };
-
-let CapacitorGeolocation = null;
-async function getNativeGeo() {
-  try {
-    if (typeof window === "undefined" || !window.Capacitor?.isNativePlatform?.()) return null;
-    if (!CapacitorGeolocation) {
-      const mod = await import("@capacitor/geolocation");
-      CapacitorGeolocation = mod.Geolocation;
-    }
-    return CapacitorGeolocation;
-  } catch (_) {
-    return null;
-  }
-}
 
 export function isGeoSupported() {
-  return typeof navigator !== "undefined" && "geolocation" in navigator;
+  return Capacitor.isNativePlatform() ||
+    (typeof navigator !== "undefined" &&
+      "geolocation" in navigator);
 }
 
-const GEO_ERROR_MAP = {
-  1: { code: "denied", message: "Location permission denied. Enable GPS permission for AvSGo and try again." },
-  2: { code: "unavailable", message: "Location unavailable right now. Please check GPS and try again." },
-  3: { code: "timeout", message: "Location request timed out. Please try again." },
-};
+function isNative() {
+  return Capacitor.isNativePlatform();
+}
+
+async function requestLocationPermission() {
+  if (!isNative()) return true;
+
+  let permission = await Geolocation.checkPermissions();
+
+  if (
+    permission.location !== "granted" &&
+    permission.coarseLocation !== "granted"
+  ) {
+    permission = await Geolocation.requestPermissions();
+  }
+
+  if (
+    permission.location !== "granted" &&
+    permission.coarseLocation !== "granted"
+  ) {
+    throw new Error(
+      "Location permission denied. Enable Location for AvSGo in Settings."
+    );
+  }
+
+  return true;
+}
 
 export async function getCurrentPosition(opts = {}) {
-  const nativeGeo = await getNativeGeo();
-  if (nativeGeo) {
-    try {
-      await nativeGeo.requestPermissions();
-      const pos = await nativeGeo.getCurrentPosition({
-        enableHighAccuracy: opts.enableHighAccuracy ?? DEFAULT_OPTS.enableHighAccuracy,
-        timeout: opts.timeout ?? DEFAULT_OPTS.timeout,
-        maximumAge: opts.maximumAge ?? DEFAULT_OPTS.maximumAge,
-      });
-      return { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-    } catch (err) {
-      const e = new Error(err?.message || "Could not read your location.");
-      e.code = err?.code || "error";
-      throw e;
-    }
+  const options = { ...DEFAULT_OPTS, ...opts };
+
+  if (isNative()) {
+    await requestLocationPermission();
+
+    const pos = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: options.enableHighAccuracy,
+      timeout: options.timeout,
+      maximumAge: options.maximumAge,
+    });
+
+    return {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracy: pos.coords.accuracy,
+    };
+  }
+
+  if (!isGeoSupported()) {
+    throw new Error("Location is not supported on this device.");
   }
 
   return new Promise((resolve, reject) => {
-    if (!isGeoSupported()) {
-      const e = new Error("Location not supported on this device");
-      e.code = "unsupported";
-      return reject(e);
-    }
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-      }),
+      (pos) =>
+        resolve({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        }),
       (err) => {
-        const mapped = GEO_ERROR_MAP[err.code] || { code: "error", message: "Could not read your location." };
-        const friendly = new Error(mapped.message);
-        friendly.code = mapped.code;
-        reject(friendly);
+        const messages = {
+          1: "Location permission denied. Allow location for AvSGo.",
+          2: "Location unavailable. Turn on GPS/Location and try again.",
+          3: "GPS timed out. Move to an open area and try again.",
+        };
+
+        reject(
+          new Error(
+            messages[err.code] || "Could not get current GPS location."
+          )
+        );
       },
-      { ...DEFAULT_OPTS, ...opts },
+      options
     );
   });
 }
 
 export function watchPosition(onUpdate, onError) {
-  let nativeWatchId = null;
-  let browserWatchId = null;
+  let watchId = null;
   let cancelled = false;
 
-  (async () => {
-    const nativeGeo = await getNativeGeo();
-    if (cancelled) return;
-    if (nativeGeo) {
-      try {
-        await nativeGeo.requestPermissions();
-        nativeWatchId = await nativeGeo.watchPosition(
-          { enableHighAccuracy: true, timeout: 20000, maximumAge: 15000 },
+  const start = async () => {
+    try {
+      if (isNative()) {
+        await requestLocationPermission();
+        if (cancelled) return;
+
+        watchId = await Geolocation.watchPosition(
+          {
+            enableHighAccuracy: true,
+            timeout: 20000,
+            maximumAge: 0,
+          },
           (pos, err) => {
-            if (err) { onError?.(err); return; }
-            if (pos) onUpdate?.({
+            if (cancelled) return;
+
+            if (err) {
+              onError?.(err);
+              return;
+            }
+
+            if (pos) {
+              onUpdate?.({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracy: pos.coords.accuracy,
+              });
+            }
+          }
+        );
+      } else {
+        if (!navigator.geolocation) {
+          throw new Error("Location is not supported on this device.");
+        }
+
+        watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            if (cancelled) return;
+
+            onUpdate?.({
               lat: pos.coords.latitude,
               lng: pos.coords.longitude,
               accuracy: pos.coords.accuracy,
             });
           },
+          (err) => onError?.(err),
+          { ...DEFAULT_OPTS }
         );
-        return;
-      } catch (e) {
-        onError?.(e);
-        return;
       }
+    } catch (err) {
+      if (!cancelled) onError?.(err);
     }
+  };
 
-    if (!isGeoSupported()) {
-      onError?.(Object.assign(new Error("Location not supported on this device"), { code: "unsupported" }));
-      return;
-    }
-    browserWatchId = navigator.geolocation.watchPosition(
-      (pos) => onUpdate?.({
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-      }),
-      (err) => onError?.(err),
-      { ...DEFAULT_OPTS, maximumAge: 15000 },
-    );
-  })();
+  start();
 
   return () => {
     cancelled = true;
-    if (nativeWatchId !== null && CapacitorGeolocation) {
-      CapacitorGeolocation.clearWatch({ id: nativeWatchId }).catch(() => {});
-    }
-    if (browserWatchId !== null && navigator.geolocation) {
-      try { navigator.geolocation.clearWatch(browserWatchId); } catch (_) {}
+
+    if (watchId === null) return;
+
+    if (isNative()) {
+      Geolocation.clearWatch({ id: watchId }).catch(() => {});
+    } else if (navigator.geolocation) {
+      navigator.geolocation.clearWatch(watchId);
     }
   };
 }
 
 export async function checkGeoPermission() {
-  const nativeGeo = await getNativeGeo();
-  if (nativeGeo) {
+  if (isNative()) {
     try {
-      const p = await nativeGeo.checkPermissions();
-      return p.location || "unknown";
-    } catch (_) { return "unknown"; }
+      const p = await Geolocation.checkPermissions();
+      return p.location || p.coarseLocation || "unknown";
+    } catch {
+      return "unknown";
+    }
   }
-  if (typeof navigator === "undefined" || !navigator.permissions) return "unknown";
+
+  if (!navigator.permissions) return "unknown";
+
   try {
-    const p = await navigator.permissions.query({ name: "geolocation" });
+    const p = await navigator.permissions.query({
+      name: "geolocation",
+    });
     return p.state;
-  } catch (_) { return "unknown"; }
+  } catch {
+    return "unknown";
+  }
 }
 
 export function haversineMeters(a, b) {
@@ -148,8 +192,12 @@ export function haversineMeters(a, b) {
   const R = 6371000;
   const dLat = toRad(b.lat - a.lat);
   const dLng = toRad(b.lng - a.lng);
+
   const h =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    Math.cos(toRad(a.lat)) *
+      Math.cos(toRad(b.lat)) *
+      Math.sin(dLng / 2) ** 2;
+
   return 2 * R * Math.asin(Math.sqrt(h));
 }
