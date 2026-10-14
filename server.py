@@ -1574,6 +1574,42 @@ async def approve_vehicle(vehicle_id: str, payload: VehicleAction, _=Depends(req
         {'url': '/driver', 'type': f'vehicle_{new_status}'},
     )
     return {'id': vehicle_id, 'status': new_status}
+    
+@api_router.patch("/admin/vehicles/{vehicle_id}/availability")
+async def admin_vehicle_availability(
+    vehicle_id: str,
+    payload: VehicleAvailability,
+    _=Depends(require_admin)
+):
+    vehicle = await db.vehicles.find_one({"id": vehicle_id})
+
+    if not vehicle:
+        raise HTTPException(404, "Vehicle not found")
+
+    if vehicle.get("status") != "approved":
+        raise HTTPException(
+            400,
+            "Only approved vehicles can change availability"
+        )
+
+    result = await db.vehicles.update_one(
+        {"id": vehicle_id, "status": "approved"},
+        {"$set": {"available": payload.available}}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(
+            409, "Vehicle availability update failed"
+        )
+
+    return {
+        "id": vehicle_id,
+        "status": "approved",
+        "available": payload.available
+    }
+
+
+
 
 
 
