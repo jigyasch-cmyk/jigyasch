@@ -1062,8 +1062,10 @@ async def manager_driver_approval(driver_id: str, payload: VehicleAction, manage
 
 @api_router.patch("/manager/vehicles/{vehicle_id}/approval")
 async def manager_vehicle_approval(vehicle_id: str, payload: VehicleAction, manager=Depends(require_manager)):
-    if not manager_can(manager, 'vehicles', 'approve_reject'):
-        raise HTTPException(403, 'Vehicle approval permission is OFF')
+    if not manager_can(manager, 'vehicles', 'manage'):
+        raise HTTPException(403, 'Vehicle manage permission is OFF')
+
+    
     vehicle = await db.vehicles.find_one({'id': vehicle_id})
     if not vehicle: raise HTTPException(404, 'Vehicle not found')
     new_status = 'approved' if payload.action == 'approve' else 'rejected'
