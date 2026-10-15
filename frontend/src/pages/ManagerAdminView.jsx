@@ -591,7 +591,10 @@ export default function ManagerAdminView() {
                             )
                           }
                         />
-                        {permission}
+                        {a === "vehicles" && p === "approve_rejec 
+                          ? "manage"
+                          : permission}
+                        
                       </label>
                     ))}
                   </div>
