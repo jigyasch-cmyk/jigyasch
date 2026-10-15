@@ -46,10 +46,10 @@ export default function ManagerDashboard() {
     {tab === "vehicles" && (
   <VehicleTable
     rows={data.vehicles || []}
-    canManage={
-      can("vehicles", "approve_reject") ||
-      can("vehicles", "manage")
-    }
+    canManage={can("vehicles", "manage")}
+      
+      
+    
     onAction={async (id, action) => {
       try {
         await api.patch(
