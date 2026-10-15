@@ -40,9 +40,120 @@ export default function ManagerDashboard() {
   ];
   return <div className="min-h-screen bg-gray-50"><div className="sticky top-0 z-30 bg-white border-b"><div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between"><div className="flex items-center gap-3"><div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center"><BriefcaseBusiness className="h-5 w-5 text-white"/></div><div><b>AvSGo Manager</b><div className="text-xs text-gray-500">{me.name} • {me.manager_id}</div></div></div><button onClick={logout} className="h-10 px-3 rounded-lg hover:bg-gray-100 flex gap-2 items-center text-sm"><LogOut className="h-4 w-4"/> Logout</button></div></div>
   <div className="max-w-6xl mx-auto px-4 py-6 grid md:grid-cols-[220px_1fr] gap-6"><aside><div className="flex md:flex-col gap-1 overflow-x-auto">{navItems.filter(x=>x[3]).map(([k,l,I])=><button key={k} onClick={()=>setTab(k)} className={`flex items-center gap-2 h-11 px-3 rounded-xl text-sm font-semibold whitespace-nowrap ${tab===k?"bg-blue-600 text-white":"hover:bg-white"}`}><I className="h-4 w-4"/>{l}</button>)}</div><div className="card mt-4"><div className="text-xs text-gray-500">Assigned Pickup PIN(s)</div><div className="font-semibold mt-1">{(me.pickup_pins||[]).join(", ")||"None"}</div><div className="text-xs text-gray-500 mt-3">Commission</div><div className="font-bold">{me.commission_pct}%</div></div></aside>
-  <main>{tab==="overview"&&<Overview me={me} data={data}/>} {tab==="drop_places"&&<DropPlaces me={me} data={data.drop_places} can={can} reload={load}/>} {tab==="payments"&&<ManagerPayments rows={data.payouts} settings={paymentSettings} setSettings={setPaymentSettings} managerId={me.id}/>} {tab!=="overview"&&tab!=="drop_places"&&tab!=="payments"&&<TableView title={labels[tab]} rows={data[tab]||[]} />}</main></div></div>
-}
+  <main>
+    
+    
+    {tab === "vehicles" && (
+  <VehicleTable
+    rows={data.vehicles || []}
+    canManage={
+      can("vehicles", "approve_reject") ||
+      can("vehicles", "manage")
+    }
+    onAction={async (id, action) => {
+      try {
+        await api.patch(
+          `/manager/vehicles/${id}/approval`,
+          { action },
+          hdrs
+        );
+        toast.success(
+          action === "approve"
+            ? "Vehicle approved"
+            : "Vehicle rejected"
+        );
+        await load();
+      } catch (e) {
+        toast.error(
+          e.response?.data?.detail ||
+          "Vehicle update failed"
+        );
+      }
+    }}
+  />
+)}
+{tab !== "overview" &&
+ tab !== "vehicles" &&
+ tab !== "drop_places" &&
+ tab !== "payments" && (
+  <TableView
+    title={labels[tab]}
+    rows={data[tab] || []}
+  />
+)}
 function Overview({me,data}){return <div className="space-y-4"><h1 className="font-display text-3xl font-bold">Manager Overview</h1><p className="text-gray-500">Assigned Pickup PIN service data only.</p><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["Customers",data.customers.length],["Drivers",data.drivers.length],["Bookings",data.bookings.length],["Drop Places",data.drop_places.length]].map(([l,v])=><div className="card" key={l}><div className="text-xs text-gray-500">{l}</div><div className="text-2xl font-bold mt-1">{v}</div></div>)}</div>{data.commission&&<div className="card"><b>Manager Commission</b><div className="grid grid-cols-3 gap-3 mt-3"><div>Earned<br/><b>₹{data.commission.earnings}</b></div><div>Paid<br/><b>₹{data.commission.paid}</b></div><div>Remaining<br/><b>₹{data.commission.remaining}</b></div></div></div>}</div>}
+ function VehicleTable({ rows, canManage, onAction }) {
+  return (
+    <div className="card">
+      <h2 className="font-display text-xl font-bold">
+        Vehicles
+      </h2>
+
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left">
+              <th className="py-3 pr-3">Vehicle</th>
+              <th className="py-3 pr-3">Number</th>
+              <th className="py-3 pr-3">Status</th>
+              {canManage && (
+                <th className="py-3">Manage</th>
+              )}
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((v) => (
+              <tr key={v.id} className="border-t">
+                <td className="py-3 pr-3">
+                  {v.vehicle_type || "Vehicle"}
+                </td>
+                <td className="py-3 pr-3">
+                  {v.plate_no || "—"}
+                </td>
+                <td className="py-3 pr-3">
+                  {v.status || "pending"}
+                </td>
+
+                {canManage && (
+                  <td className="py-3">
+                    {v.status !== "approved" && (
+                      <button
+                        className="mr-2 rounded bg-green-600 px-3 py-2 text-white"
+                        onClick={() =>
+                          onAction(v.id, "approve")
+                        }
+                      >
+                        Approve
+                      </button>
+                    )}
+
+                    {v.status !== "rejected" && (
+                      <button
+                        className="rounded bg-red-600 px-3 py-2 text-white"
+                        onClick={() =>
+                          onAction(v.id, "reject")
+                        }
+                      >
+                        Reject
+                      </button>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {!rows.length && (
+          <p className="mt-4 text-gray-500">
+            No vehicles available.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}   
 function TableView({title,rows}){return <div className="card"><h2 className="font-display text-xl font-bold">{title}</h2><div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><tbody>{rows.slice(0,100).map((r,i)=><tr key={r.id||i} className="border-t"><td className="py-3 pr-4 font-semibold">{r.name||r.customer_name||r.place_name||r.vehicle_type||r.id}</td><td>{r.mobile||r.status||r.plate_no||r.fare||"—"}</td><td>{r.pickup_pin||r.drop_location||r.created_at||""}</td></tr>)}</tbody></table>{!rows.length&&<div className="text-gray-500 mt-4">No data available.</div>}</div></div>}
 function DropPlaces({me,data,can,reload}){
  const [f,setF]=useState({place_name:"",latitude:"",longitude:"",pickup_pin:(me.pickup_pins||[])[0]||""});
