@@ -6,7 +6,7 @@ import api from "@/lib/api";
 const emptyPerms = {
   customers: ["view", "manage"],
   drivers: ["view", "approve_reject"],
-  vehicles: ["view", "approve_reject"],
+  vehicles: ["view", "manage"],
   drop_places: ["view", "add", "edit", "enable_disable"],
   bookings: ["view", "manage_status", "live_trip"],
   commission: ["view", "manage"],
@@ -27,12 +27,23 @@ const defaultVehicles = [
 
 const clonePermissions = (permissions = {}) =>
   Object.fromEntries(
-    Object.entries(emptyPerms).map(([area, defaults]) => [
-      area,
-      Array.isArray(permissions[area])
-        ? [...permissions[area]]
-        : [...defaults],
-    ])
+    Object.entries(emptyPerms).map(([area, defaults]) => {
+      const saved = permissions[area];
+
+      const values = Array.isArray(saved)
+        ? [...saved]
+        : [...defaults];
+
+      // Old vehicle approval permission becomes the new manage permission.
+      const normalized =
+        area === "vehicles"
+          ? values.map((p) =>
+              p === "approve_reject" ? "manage" : p
+            )
+          : values;
+
+      return [area, [...new Set(normalized)]];
+    })
   );
 
 const blank = () => ({
@@ -591,7 +602,7 @@ export default function ManagerAdminView() {
                             )
                           }
                         />
-                        {a === "vehicles" && p === "approve_rejec 
+                        {area === "vehicles" && permission === "approve_rejec 
                           ? "manage"
                           : permission}
                         
