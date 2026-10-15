@@ -602,7 +602,7 @@ export default function ManagerAdminView() {
                             )
                           }
                         />
-                        {area === "vehicles" && permission === "approve_rejec 
+                        {area === "vehicles" && permission === "approve_reject 
                           ? "manage"
                           : permission}
                         
