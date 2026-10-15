@@ -81,6 +81,33 @@ export default function ManagerDashboard() {
     rows={data[tab] || []}
   />
 )}
+    {tab === "overview" && (
+      <Overview me={me} data={data} />
+    )}
+
+    {tab === "drop_places" && (
+      <DropPlaces
+        me={me}
+        data={data.drop_places || []}
+        can={can}
+        reload={load}
+      />
+    )}
+
+    {tab === "payments" && (
+      <ManagerPayments
+        rows={data.payouts || []}
+        settings={paymentSettings}
+        setSettings={setPaymentSettings}
+        managerId={me.id}
+      />
+    )}
+  </main>
+  </div>
+  </div>;
+}
+
+    
 function Overview({me,data}){return <div className="space-y-4"><h1 className="font-display text-3xl font-bold">Manager Overview</h1><p className="text-gray-500">Assigned Pickup PIN service data only.</p><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[["Customers",data.customers.length],["Drivers",data.drivers.length],["Bookings",data.bookings.length],["Drop Places",data.drop_places.length]].map(([l,v])=><div className="card" key={l}><div className="text-xs text-gray-500">{l}</div><div className="text-2xl font-bold mt-1">{v}</div></div>)}</div>{data.commission&&<div className="card"><b>Manager Commission</b><div className="grid grid-cols-3 gap-3 mt-3"><div>Earned<br/><b>₹{data.commission.earnings}</b></div><div>Paid<br/><b>₹{data.commission.paid}</b></div><div>Remaining<br/><b>₹{data.commission.remaining}</b></div></div></div>}</div>}
  function VehicleTable({ rows, canManage, onAction }) {
   return (
