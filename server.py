@@ -288,6 +288,10 @@ class CustomerRegister(BaseModel):
     mobile: str
     pickup_pin: str
 
+class CustomerRewardsUpdate(BaseModel):
+    discount_eligible: bool = False
+    discount_amount: float = Field(default=0, ge=0)
+
 
 class AdminRegister(BaseModel):
     name: str
@@ -771,6 +775,96 @@ async def customer_register(payload: CustomerRegister):
     await db.customers.update_one({'mobile': mobile}, {'$set': doc, '$setOnInsert': {'id': str(uuid.uuid4()), 'created_at': now_iso()}}, upsert=True)
     saved = await db.customers.find_one({'mobile': mobile}, {'_id': 0})
     return saved
+
+
+@api_router.get("/admin/customers")
+async def admin_list_customers(_=Depends(require_admin)):
+    customers = await db.customers.find(
+        {},
+        {
+            "_id": 0,
+            "name": 1,
+            "mobile": 1,
+            "points": 1,
+            "discount_amount": 1,
+            "discount_eligible": 1,
+        },
+    ).sort("name", 1).to_list(2000)
+
+    for customer in customers:
+        customer.setdefault("points", 0)
+        customer.setdefault("discount_amount", 0.0)
+        customer.setdefault("discount_eligible", False)
+
+    return customers
+
+
+@api_router.patch("/admin/customers/{mobile}/rewards")
+async def admin_update_customer_rewards(
+    mobile: str,
+    payload: CustomerRewardsUpdate,
+    _=Depends(require_admin),
+):
+    mobile = mobile.strip()
+
+    if len(mobile) != 10 or not mobile.isdigit():
+        raise HTTPException(400, "Invalid customer mobile")
+
+    customer = await db.customers.find_one({"mobile": mobile})
+    if not customer:
+        raise HTTPException(404, "Customer not found")
+
+    update = {
+        "discount_eligible": payload.discount_eligible,
+        "discount_amount": round(payload.discount_amount, 2),
+        "updated_at": now_iso(),
+    }
+
+    # Discount দিলে current points reset; historical data অক্ষত থাকিব।
+    if payload.discount_amount > 0:
+        update["points"] = 0
+
+        await db.customer_points_history.insert_one({
+            "id": str(uuid.uuid4()),
+            "customer_mobile": mobile,
+            "event": "discount_granted",
+            "points_before": int(customer.get("points", 0)),
+            "discount_amount": round(payload.discount_amount, 2),
+            "created_at": now_iso(),
+        })
+
+    await db.customers.update_one(
+        {"mobile": mobile},
+        {"$set": update},
+    )
+
+    return await db.customers.find_one(
+        {"mobile": mobile},
+        {"_id": 0},
+    )
+
+
+@api_router.get("/customer/rewards/{mobile}")
+async def customer_rewards(mobile: str):
+    mobile = mobile.strip()
+
+    if len(mobile) != 10 or not mobile.isdigit():
+        raise HTTPException(400, "Invalid customer mobile")
+
+    customer = await db.customers.find_one(
+        {"mobile": mobile},
+        {"_id": 0, "name": 1, "mobile": 1, "points": 1,
+         "discount_amount": 1, "discount_eligible": 1},
+    )
+
+    if not customer:
+        raise HTTPException(404, "Customer not found")
+
+    customer.setdefault("points", 0)
+    customer.setdefault("discount_amount", 0.0)
+customer.setdefault("discount_eligible", False)
+
+    return customer
 
 
 @api_router.post("/auth/driver/register")
@@ -1946,13 +2040,47 @@ async def driver_payment_received(booking_id: str, payload: PaymentReceivedIn, u
     b = await db.bookings.find_one({'id': booking_id, 'driver_id': user['sub']})
     if not b: raise HTTPException(404, 'Booking not found')
     if b.get('status') != 'completed': raise HTTPException(400, 'Trip must be completed first')
-    if b.get('payment_status') == 'completed': return b
-    await db.bookings.update_one({'id': booking_id, 'driver_id': user['sub']},
-        {'$set': {'payment_status':'completed','payment_method':payload.payment_method,'payment_received_at':now_iso()}})
-    updated = await db.bookings.find_one({'id': booking_id}, {'_id': 0})
-    await ws_manager.booking_event(booking_id, 'payment_updated', {'payment_status': updated.get('payment_status'), 'payment_method': updated.get('payment_method')})
-    return updated
+    if b.get('payment_status') != 'completed':
+        await db.bookings.update_one(
+            {'id': booking_id, 'driver_id': user['sub']},
+            {'$set': {
+                'payment_status': 'completed',
+                'payment_method': payload.payment_method,
+                'payment_received_at': now_iso(),
+            }},
+         )
 
+    # একেটা booking-ৰ বাবে এবাৰহে point award হ'ব।
+    award = await db.bookings.update_one(
+        {'id': booking_id, 'points_awarded': {'$ne': True}},
+        {'$set': {'points_awarded': True}},. 
+    )
+    if award.modified_count == 1:
+        await db.customers.update_one(
+            {'mobile': b.get('customer_mobile')},
+                {'$inc': {'points': 1}},
+        )
+
+        await db.customer_points_history.insert_one({
+            'id': str(uuid.uuid4()),
+            'customer_mobile': b.get('customer_mobile'),
+            'booking_id': booking_id,
+            'event': 'paid_trip_point',
+            'points': 1,
+            'created_at': now_iso(),
+        })
+    updated = await db.bookings.find_one(
+        {'id': booking_id}, {'_id': 0}. 
+    ) 
+    await ws_manager.booking_event(
+        booking_id,
+        'payment_updated',
+        {
+            'payment_status': updated.get('payment_status'),
+            'payment_method': updated.get('payment_method'),
+        },
+    )
+    return updated
 @api_router.get("/customer/bookings/{booking_id}")
 async def customer_booking_status(booking_id: str):
     b = await db.bookings.find_one({'id': booking_id}, {'_id': 0})
