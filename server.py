@@ -2071,7 +2071,7 @@ async def driver_payment_received(booking_id: str, payload: PaymentReceivedIn, u
             'created_at': now_iso(),
         })
     updated = await db.bookings.find_one(
-        {'id': booking_id}, {'_id': 0}. 
+        {'id': booking_id}, {'_id': 0} 
     ) 
     await ws_manager.booking_event(
         booking_id,
