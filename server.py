@@ -2054,7 +2054,7 @@ async def driver_payment_received(booking_id: str, payload: PaymentReceivedIn, u
     # একেটা booking-ৰ বাবে এবাৰহে point award হ'ব।
     award = await db.bookings.update_one(
         {'id': booking_id, 'points_awarded': {'$ne': True}},
-        {'$set': {'points_awarded': True}},. 
+        {'$set': {'points_awarded': True}}, 
     )
     if award.modified_count == 1:
         await db.customers.update_one(
