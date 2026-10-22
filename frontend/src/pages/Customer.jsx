@@ -51,6 +51,10 @@ export default function Customer() {
   const [loading, setLoading] = useState(false);
   const [tripState, setTripState] = useState(null);
   const [tripGeometry, setTripGeometry] = useState(null);
+  const [rewards, setRewards] = useState({
+    points: 0,
+    discount_amount: 0,
+  });
   const gpsAppliedRef = useRef(false);
 
   const fareCfg = useMemo(
@@ -170,6 +174,28 @@ getCurrentPosition()
     // resolvePincode reads current API helpers; PIN is the dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pincode, onboardingDone]);
+
+  useEffect(() => {
+  const mobile = form.mobile?.trim();
+  if (!onboardingDone || !mobile) return;
+
+  let alive = true;
+
+  const loadRewards = async () => {
+    try {
+      const r = await api.get(`/customer/rewards/${mobile}`);
+      if (alive) setRewards(r.data);
+    } catch {}
+  };
+
+  loadRewards();
+  const timer = setInterval(loadRewards, 5000);
+
+  return () => {
+    alive = false;
+    clearInterval(timer);
+  };
+}, [form.mobile, onboardingDone]);
 
   const completeOnboarding = async () => {
     const pin = pincode.trim();
@@ -522,6 +548,24 @@ useEffect(() => {
 
       {step === 1 && (
         <div className="p-4 space-y-4">
+
+<div className="card flex items-center justify-between gap-3">
+  <div>
+    <div className="text-sm text-gray-500">My Points</div>
+    <div className="text-xl font-bold">
+      {rewards.points ?? 0}
+    </div>
+  </div>
+
+  <div className="text-right">
+    <div className="text-sm text-gray-500">My Discount</div>
+    <div className="text-xl font-bold text-emerald-700">
+      ₹{Number(rewards.discount_amount ?? 0).toFixed(2)}
+    </div>
+  </div>
+</div>
+
+          
           <div className="space-y-2">
             <button data-testid="customer-pickup-search" onClick={() => setPickupOverlayOpen(true)}
               className="w-full flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-3 text-left transition hover:border-emerald-400">
