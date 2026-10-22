@@ -21,18 +21,19 @@ export default function AdminDashboard() {
   const [bookings, setBookings] = useState([]);
   const [fares, setFares] = useState([]);
   const [payments, setPayments] = useState([]);
-
+  const [customers, setCustomers] = useState([]);
   const hdrs = { headers: { "x-role": "admin" } };
 
   const load = async () => {
     try {
-      const [s, v, d, b, f, p] = await Promise.all([
+      const [s, v, d, b, f, p,c] = await Promise.all([
         api.get("/admin/stats", hdrs),
         api.get("/admin/vehicles", hdrs),
         api.get("/admin/drivers", hdrs),
         api.get("/admin/bookings", hdrs),
         api.get("/fare-settings"),
         api.get("/admin/commission-payments", hdrs),
+        api.get("/admin/customers", hdrs),
       ]);
       setStats(s.data);
       setVehicles(v.data);
@@ -40,6 +41,7 @@ export default function AdminDashboard() {
       setBookings(b.data);
       setFares(f.data);
       setPayments(p.data);
+      setCustomers(c.data);
     } catch (e) {
       if (e.response?.status === 401) logout();
     }
@@ -158,6 +160,7 @@ export default function AdminDashboard() {
               ["dashboard", "Dashboard", LayoutDashboard],
               ["vehicles", "Vehicles", Car],
               ["drivers", "Drivers", Users],
+              ["customers", "Customers", Users],
               ["bookings", "Bookings", Package],
               ["payments", "Payments", Wallet],
               ["service_areas", "Service Areas", MapPin],
@@ -197,6 +200,10 @@ export default function AdminDashboard() {
           {tab === "vehicles" && <VehiclesView vehicles={vehicles} onAction={approve} onAvailability={setAvailability} />}
           {tab === "drivers" && <DriversView drivers={drivers} onNotify={notify} onSettle={settle} />}
           {tab === "bookings" && <BookingsView bookings={bookings} />}
+          {tab === "customers" && (
+  
+            <CustomersView customers={customers} onRefresh={load} />
+          )}
           {tab === "payments" && <PaymentsView payments={payments} onReview={reviewPayment} />}
           {tab === "service_areas" && <ServiceAreasView />}
           {tab === "drop_places" && <AdminDropPlacesView />}
@@ -1610,6 +1617,112 @@ function ManagerPayoutsView() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function CustomersView({ customers, onRefresh }) {
+  const [amounts, setAmounts] = useState({});
+
+  useEffect(() => {
+    setAmounts((old) => {
+      const next = { ...old };
+      customers.forEach((c) => {
+        if (next[c.mobile] === undefined) {
+          next[c.mobile] = String(c.discount_amount ?? 0);
+        }
+      });
+      return next;
+    });
+  }, [customers]);
+
+  const saveDiscount = async (customer) => {
+    const amount = Number(amounts[customer.mobile]);
+
+    if (!Number.isFinite(amount) || amount < 0) {
+      toast.error("Discount amount must be ₹0 or more");
+      return;
+    }
+
+    try {
+      await api.patch(
+        `/admin/customers/${customer.mobile}/rewards`,
+        {
+          discount_eligible: amount > 0,
+          discount_amount: amount,
+        },
+        { headers: { "x-role": "admin" } }
+      );
+
+      toast.success("Customer discount saved");
+      onRefresh();
+    } catch (e) {
+      toast.error(
+        e.response?.data?.detail || "Failed to save discount"
+      );
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="font-display text-3xl font-bold">
+          Saved Customers
+        </h1>
+        <p className="text-sm text-gray-500">
+          Customer points and direct discount amount.
+        </p>
+      </div>
+
+      {customers.length === 0 ? (
+        <div className="card">No saved customers found.</div>
+      ) : (
+        customers.map((customer) => (
+          <div key={customer.mobile} className="card space-y-3">
+            <div className="font-semibold">
+              {customer.name || "Customer"}
+            </div>
+            <div className="text-sm text-gray-500">
+              Mobile: {customer.mobile}
+            </div>
+
+            <div className="flex flex-wrap gap-4 text-sm">
+              <div>
+                Points: <b>{customer.points ?? 0}</b>
+              </div>
+              <div>
+                Current discount:{" "}
+                <b>₹{Number(customer.discount_amount ?? 0).toFixed(2)}</b>
+              </div>
+            </div>
+
+            <label className="block text-sm font-medium">
+              Set discount amount (₹)
+            </label>
+            <input
+              className="field"
+              type="number"
+              min="0"
+              step="0.01"
+              value={amounts[customer.mobile] ?? "0"}
+              onChange={(e) =>
+                setAmounts((old) => ({
+                  ...old,
+                  [customer.mobile]: e.target.value,
+                }))
+              }
+              placeholder="Enter amount in rupees"
+            />
+
+            <button
+              className="brand-btn"
+              onClick={() => saveDiscount(customer)}
+            >
+              Save Discount
+            </button>
+          </div>
+        ))
+      )}
     </div>
   );
 }
