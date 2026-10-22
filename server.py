@@ -864,7 +864,7 @@ async def customer_rewards(mobile: str):
         
         customer.setdefault("discount_eligible", False)
     
-    return customer
+            return customer
 
     
 
