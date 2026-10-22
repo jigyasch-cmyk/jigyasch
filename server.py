@@ -859,12 +859,12 @@ async def customer_rewards(mobile: str):
 
     if not customer:
         raise HTTPException(404, "Customer not found")
-        customer.setdefault("points", 0)
-        customer.setdefault("discount_amount", 0.0)
+    customer.setdefault("points", 0)
+    customer.setdefault("discount_amount", 0.0)
         
-    customer.setdefault("discount_eligible", False)
+customer.setdefault("discount_eligible", False)
     
-        return customer
+    return customer
 
     
 
