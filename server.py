@@ -1546,6 +1546,59 @@ async def manager_complaints(manager=Depends(require_manager)):
         raise HTTPException(403,'Complaint permission is OFF')
     return await db.complaints.find({'pickup_pin':{'$in':manager.get('pickup_pins') or []}},{'_id':0}).sort('created_at',-1).to_list(1000)
 
+
+@api_router.get('/customer/complaints')
+async def customer_list_complaints(mobile: str = Query(...)):
+    mobile = mobile.strip()
+    return await db.complaints.find(
+        {'role': 'customer', 'owner_id': mobile},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(500)
+
+
+@api_router.get('/driver/complaints')
+async def driver_list_complaints(user=Depends(require_driver)):
+    return await db.complaints.find(
+        {'role': 'driver', 'owner_id': user.get('sub')},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(500)
+
+
+@api_router.patch('/manager/complaints/{complaint_id}')
+async def manager_update_complaint(
+    complaint_id: str,
+    payload: ComplaintStatusUpdate,
+    manager=Depends(require_manager)
+):
+    if not manager_can(manager, 'complaints', 'reply'):
+        raise HTTPException(403, 'Complaint reply permission is OFF')
+
+    complaint = await db.complaints.find_one({
+        'id': complaint_id,
+        'pickup_pin': {'$in': manager_pin_filter(manager)}
+    })
+
+    if not complaint:
+        raise HTTPException(404, 'Complaint not found in assigned area')
+
+    update = {
+        'status': payload.status,
+        'updated_at': now_iso()
+    }
+
+    if payload.reply is not None:
+        update['manager_reply'] = payload.reply
+
+    await db.complaints.update_one(
+        {'id': complaint_id},
+        {'$set': update}
+    )
+
+    return await db.complaints.find_one(
+        {'id': complaint_id},
+        {'_id': 0}
+    )
+
 # ---- Vehicles ----
 @api_router.post("/driver/vehicles")
 async def add_vehicle(payload: VehicleCreate, user=Depends(require_driver_vehicle)):
