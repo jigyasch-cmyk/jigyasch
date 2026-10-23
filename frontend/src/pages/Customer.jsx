@@ -658,7 +658,8 @@ useEffect(() => {
     <button className="brand-btn-outline"
       onClick={() => setCustomerFeature("")}>Close</button>
   </div>
-)}  
+)}
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
         <div className="flex items-center gap-3 p-4">
           <button data-testid="customer-back-btn" onClick={() => step > 1 && step < 4 ? setStep(step - 1) : nav("/")}
             className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
