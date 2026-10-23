@@ -63,6 +63,10 @@ export default function Customer() {
   const [complaintMessage, setComplaintMessage] = useState("");
   const [featureLoading, setFeatureLoading] = useState(false);
   const gpsAppliedRef = useRef(false);
+  const reverseGeocodeRef = useRef({
+   lastKey: "",
+   lastTime: 0,
+  });
 
   const fareCfg = useMemo(
     () => fares.find((f) => f.vehicle_type === vehicleType),
@@ -313,19 +317,29 @@ useEffect(() => {
       };
     });
 
-    try {
-      const r = await api.get(
-        `/reverse-geocode?lat=${current.lat}&lng=${current.lng}`
-      );
+const now = Date.now();
 
-      if (r.data?.display_name && !gpsAppliedRef.current) {
-        setPickup((previous) => {
-          if (previous?.source !== "gps") return previous;
-          return { ...previous, display_name: r.data.display_name };
-        });
-      }
-    } catch {}
-  }, () => {});
+if (now - reverseGeocodeRef.current.lastTime >= 30000) {
+  reverseGeocodeRef.current.lastTime = now;
+
+  try {
+    const r = await api.get(
+      `/reverse-geocode?lat=${current.lat}&lng=${current.lng}`
+    );
+
+    if (r.data?.display_name && !gpsAppliedRef.current) {
+      setPickup((previous) => {
+        if (previous?.source !== "gps") return previous;
+
+        return {
+          ...previous,
+          display_name: r.data.display_name,
+        };
+      });
+    }
+  } catch {}
+}
+}, () => {});
 
   return () => {
     if (typeof stop === "function") stop();
