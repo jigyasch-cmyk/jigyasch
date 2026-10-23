@@ -1555,6 +1555,14 @@ async def customer_list_complaints(mobile: str = Query(...)):
         {'_id': 0}
     ).sort('created_at', -1).to_list(500)
 
+@api_router.get('/customer/trip-history')
+async def customer_trip_history(mobile: str = Query(...)):
+    mobile = mobile.strip()
+    return await db.bookings.find(
+        {'customer_mobile': mobile},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(500)
+
 
 @api_router.get('/driver/complaints')
 async def driver_list_complaints(user=Depends(require_driver)):
