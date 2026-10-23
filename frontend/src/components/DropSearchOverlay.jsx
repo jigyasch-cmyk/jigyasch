@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, X, MapPin, Loader2, Search } from "lucide-react";
 import api from "@/lib/api";
+let dropPlacesCache = null;
+let dropPlacesCacheTime = 0;
+const DROP_PLACES_CACHE_MS = 30000;
 
 function highlight(text, query) {
   if (!text) return text;
@@ -22,13 +25,25 @@ useEffect(() => {
 
   let alive = true;
 
+const now = Date.now();
+
+if (
+  dropPlacesCache &&
+  now - dropPlacesCacheTime < DROP_PLACES_CACHE_MS
+) {
+  setPlaces(dropPlacesCache);
+} else {
   api.get("/drop-places")
-    .then(r => {
-      if (alive) setPlaces(r.data || []);
+    .then((r) => {
+      const data = r.data || [];
+      dropPlacesCache = data;
+      dropPlacesCacheTime = Date.now();
+      setPlaces(data);
     })
     .catch(() => {
-      if (alive) setPlaces([]);
+      if (!dropPlacesCache) setPlaces([]);
     });
+}
 
   const t = setTimeout(() => inputRef.current?.focus(), 80);
 
