@@ -55,6 +55,13 @@ export default function Customer() {
     points: 0,
     discount_amount: 0,
   });
+
+  const [customerFeature, setCustomerFeature] = useState("");
+  const [tripHistory, setTripHistory] = useState([]);
+  const [complaintHistory, setComplaintHistory] = useState([]);
+  const [complaintSubject, setComplaintSubject] = useState("");
+  const [complaintMessage, setComplaintMessage] = useState("");
+  const [featureLoading, setFeatureLoading] = useState(false);
   const gpsAppliedRef = useRef(false);
 
   const fareCfg = useMemo(
@@ -196,6 +203,59 @@ getCurrentPosition()
     clearInterval(timer);
   };
 }, [form.mobile, onboardingDone]);
+
+const loadTripHistory = async () => {
+  setFeatureLoading(true);
+  try {
+    const r = await api.get("/customer/trip-history", {
+      params: { mobile: form.mobile },
+    });
+    setTripHistory(Array.isArray(r.data) ? r.data : []);
+    setCustomerFeature("trips");
+  } catch (e) {
+    toast.error(e.response?.data?.detail || "Trip history load failed");
+  } finally {
+    setFeatureLoading(false);
+  }
+};
+
+const loadComplaintHistory = async () => {
+  setFeatureLoading(true);
+  try {
+    const r = await api.get("/customer/complaints", {
+      params: { mobile: form.mobile },
+    });
+    setComplaintHistory(Array.isArray(r.data) ? r.data : []);
+    setCustomerFeature("complaints");
+  } catch (e) {
+    toast.error(e.response?.data?.detail || "Complaint history load failed");
+  } finally {
+    setFeatureLoading(false);
+  }
+};
+
+const submitCustomerComplaint = async () => {
+  if (!complaintSubject.trim() || !complaintMessage.trim()) {
+    return toast.error("Subject আৰু message লিখা");
+  }
+
+  try {
+    await api.post("/customer/complaints", {
+      subject: complaintSubject.trim(),
+      message: complaintMessage.trim(),
+      booking_id: booking?.id || null,
+    }, {
+      params: { mobile: form.mobile },
+    });
+
+    setComplaintSubject("");
+    setComplaintMessage("");
+    toast.success("Complaint submitted");
+    await loadComplaintHistory();
+  } catch (e) {
+    toast.error(e.response?.data?.detail || "Complaint submit failed");
+  }
+};
 
   const completeOnboarding = async () => {
     const pin = pincode.trim();
@@ -523,7 +583,82 @@ useEffect(() => {
 
   return (
     <div className="mobile-shell pb-24">
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200">
+
+
+
+
+<div className="px-3 py-2 flex gap-2 overflow-x-auto border-b bg-white">
+  <button className="brand-btn-outline whitespace-nowrap"
+    onClick={loadTripHistory}>
+    Trip History
+  </button>
+
+  <button className="brand-btn-outline whitespace-nowrap"
+    onClick={loadComplaintHistory}>
+    Complaint History
+  </button>
+
+  <button className="brand-btn-outline whitespace-nowrap"
+    onClick={() => setCustomerFeature("new-complaint")}>
+    Complaint Box
+  </button>
+</div>
+
+{featureLoading && (
+  <p className="p-4 text-sm text-gray-500">Loading…</p>
+)}
+
+{customerFeature === "trips" && (
+  <div className="p-4 space-y-3">
+    <h3 className="font-bold">My Trip History</h3>
+    {tripHistory.length === 0 && <p>No trips found.</p>}
+    {tripHistory.map((t) => (
+      <div className="card space-y-1" key={t.id}>
+        <p>Pickup: {t.pickup}</p>
+        <p>Drop: {t.drop_location}</p>
+        <p>Status: {t.status}</p>
+        <p>Payment: {t.payment_status || "Pending"}</p>
+        <p>Fare: ₹{t.fare ?? 0}</p>
+      </div>
+    ))}
+    <button className="brand-btn-outline"
+      onClick={() => setCustomerFeature("")}>Close</button>
+  </div>
+)}
+
+{customerFeature === "new-complaint" && (
+  <div className="p-4 space-y-3">
+    <h3 className="font-bold">Submit Complaint</h3>
+    <input className="field" placeholder="Complaint subject"
+      value={complaintSubject}
+      onChange={(e) => setComplaintSubject(e.target.value)} />
+    <textarea className="field w-full" placeholder="Write your complaint"
+      value={complaintMessage}
+      onChange={(e) => setComplaintMessage(e.target.value)} />
+    <button className="brand-btn w-full"
+      onClick={submitCustomerComplaint}>Submit Complaint</button>
+    <button className="brand-btn-outline w-full"
+      onClick={() => setCustomerFeature("")}>Cancel</button>
+  </div>
+)}
+
+{customerFeature === "complaints" && (
+  <div className="p-4 space-y-3">
+    <h3 className="font-bold">My Complaint History</h3>
+    {complaintHistory.length === 0 && <p>No complaints found.</p>}
+    {complaintHistory.map((c) => (
+      <div className="card space-y-1" key={c.id}>
+        <p className="font-semibold">{c.subject}</p>
+        <p>{c.message}</p>
+        <p>Status: {c.status}</p>
+        {c.admin_reply && <p>Admin reply: {c.admin_reply}</p>}
+        {c.manager_reply && <p>Manager reply: {c.manager_reply}</p>}
+      </div>
+    ))}
+    <button className="brand-btn-outline"
+      onClick={() => setCustomerFeature("")}>Close</button>
+  </div>
+)}  
         <div className="flex items-center gap-3 p-4">
           <button data-testid="customer-back-btn" onClick={() => step > 1 && step < 4 ? setStep(step - 1) : nav("/")}
             className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
