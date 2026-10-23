@@ -12,7 +12,7 @@ const emptyPerms = {
   commission: ["view", "manage"],
   payments: ["view", "verify"],
   fares: ["view", "manage"],
-  complaints: ["view", "manage"],
+  complaints: ["view", "reply"],
   reports: ["view"],
 };
 
