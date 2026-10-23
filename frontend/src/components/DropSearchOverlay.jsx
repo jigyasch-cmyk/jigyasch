@@ -17,12 +17,28 @@ export default function DropSearchOverlay({ open, onClose, onSelect }) {
   const [busy, setBusy] = useState(false);
   const inputRef = useRef(null);
 
-  useEffect(() => {
-    if (!open) return;
-    api.get("/drop-places").then(r => setPlaces(r.data || [])).catch(() => setPlaces([]));
-    const t = setTimeout(() => inputRef.current?.focus(), 80);
-    return () => { clearTimeout(t); setQuery(""); setBusy(false); };
-  }, [open]);
+useEffect(() => {
+  if (!open) return;
+
+  let alive = true;
+
+  api.get("/drop-places")
+    .then(r => {
+      if (alive) setPlaces(r.data || []);
+    })
+    .catch(() => {
+      if (alive) setPlaces([]);
+    });
+
+  const t = setTimeout(() => inputRef.current?.focus(), 80);
+
+  return () => {
+    alive = false;
+    clearTimeout(t);
+    setQuery("");
+    setBusy(false);
+  };
+}, [open]);
 
   useEffect(() => {
     if (!open) return;
