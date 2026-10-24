@@ -160,21 +160,22 @@ jobs:
                   title.setText("AvSGo Floating Window");
                   title.setTextColor(Color.WHITE);
                   panel.addView(title);
-
                   Button open = new Button(this);
-                  open.setText("Open AvSGo");
+                  open.setText("Full Screen");
                   open.setOnClickListener(v -> {
                       Intent launch = getPackageManager()
                           .getLaunchIntentForPackage(getPackageName());
+
                       if (launch != null) {
-                          launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                          startActivity(launch);
+                  launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                  launch.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                           startActivity(launch);
                       }
                   });
                   panel.addView(open);
 
                   Button close = new Button(this);
-                  close.setText("Close window");
+                  close.setText("× Close Window");
                   close.setOnClickListener(v -> stopSelf());
                   panel.addView(close);
 
