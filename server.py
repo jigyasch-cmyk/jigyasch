@@ -1055,7 +1055,7 @@ async def manager_drop_places(manager=Depends(require_manager)):
     if pins:
         q['$or'] = [{'pickup_pin': {'$in': pins}}, {'pickup_pin': None}]
     cur = db.drop_places.find(q, {'_id': 0}).sort('place_name', 1)
-    return await cur.to_list(10000)
+    return await cur.to_list(None)
 class DropPlaceCreate(BaseModel):
     place_name: str
     latitude: float
@@ -3464,11 +3464,34 @@ async def manager_payouts(manager=Depends(require_manager)):
     cur = db.manager_payouts.find({'manager_id': manager['id']}, {'_id': 0}).sort('created_at', -1)
     return await cur.to_list(500)
 
-@api_router.get("/drop-places")
-async def public_drop_places():
-    cur = db.drop_places.find({'enabled': True}, {'_id': 0}).sort('place_name', 1)
-    return await cur.to_list(10000)
 
+
+    
+
+@api_router.get("/drop-places")
+async def public_drop_places(
+    q: str = "",
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    query = {'enabled': True}
+
+    if q.strip():
+        import re
+        query['place_name'] = {
+            '$regex': re.escape(q.strip()),
+            '$options': 'i'
+        }
+
+    cur = (
+        db.drop_places
+        .find(query, {'_id': 0})
+        .sort('place_name', 1)
+        .skip(offset)
+        .limit(limit)
+    )
+
+    return await cur.to_list(length=limit)
 
 @api_router.post("/admin/drop-places")
 async def admin_add_drop_place(payload: DropPlaceCreate, _=Depends(require_admin)):
@@ -3485,7 +3508,7 @@ async def admin_add_drop_place(payload: DropPlaceCreate, _=Depends(require_admin
 @api_router.get("/admin/drop-places")
 async def admin_drop_places(_=Depends(require_admin)):
     cur = db.drop_places.find({}, {'_id': 0}).sort('created_at', -1)
-    return await cur.to_list(10000)
+    return await cur.to_list(None)
 
 
 @api_router.patch("/admin/drop-places/{place_id}")
