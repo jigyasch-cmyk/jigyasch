@@ -67,6 +67,167 @@ jobs:
           print("Android location permissions added.")
           print(manifest.read_text())
           PY
+    
+    
+
+      - name: Add AvSGo Floating Window Native Service
+        working-directory: frontend
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("android/app/src/main")
+          java_dir = root / "java/com/avsgo/app"
+          java_dir.mkdir(parents=True, exist_ok=True)
+
+          main_activity = java_dir / "MainActivity.java"
+          main_activity.write_text("""package com.avsgo.app;
+
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.provider.Settings;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                      && !Settings.canDrawOverlays(this)) {
+                      Intent intent = new Intent(
+                          Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                          Uri.parse("package:" + getPackageName())
+                      );
+                      startActivity(intent);
+                  }
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                      || Settings.canDrawOverlays(this)) {
+                      startService(new Intent(this, FloatingWindowService.class));
+                  }
+              }
+          }
+          """)
+
+          service = java_dir / "FloatingWindowService.java"
+          service.write_text("""package com.avsgo.app;
+
+          import android.app.Service;
+          import android.content.Intent;
+          import android.graphics.Color;
+          import android.graphics.PixelFormat;
+          import android.os.Build;
+          import android.os.IBinder;
+          import android.provider.Settings;
+          import android.view.Gravity;
+          import android.view.WindowManager;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          public class FloatingWindowService extends Service {
+              private WindowManager manager;
+              private LinearLayout panel;
+
+              @Override
+              public IBinder onBind(Intent intent) {
+                  return null;
+              }
+
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+
+                  if (Build.VERSION.SDK_INT >= 23
+                      && !Settings.canDrawOverlays(this)) {
+                      stopSelf();
+                      return;
+                  }
+
+                  manager = (WindowManager) getSystemService(WINDOW_SERVICE);
+                  panel = new LinearLayout(this);
+                  panel.setOrientation(LinearLayout.VERTICAL);
+                  panel.setPadding(12, 8, 12, 8);
+                  panel.setBackgroundColor(Color.rgb(20, 110, 65));
+
+                  TextView title = new TextView(this);
+                  title.setText("AvSGo Floating Window");
+                  title.setTextColor(Color.WHITE);
+                  panel.addView(title);
+
+                  Button open = new Button(this);
+                  open.setText("Open AvSGo");
+                  open.setOnClickListener(v -> {
+                      Intent launch = getPackageManager()
+                          .getLaunchIntentForPackage(getPackageName());
+                      if (launch != null) {
+                          launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                          startActivity(launch);
+                      }
+                  });
+                  panel.addView(open);
+
+                  Button close = new Button(this);
+                  close.setText("Close window");
+                  close.setOnClickListener(v -> stopSelf());
+                  panel.addView(close);
+
+                  int type = Build.VERSION.SDK_INT >= 26
+                      ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                      : WindowManager.LayoutParams.TYPE_PHONE;
+
+                  WindowManager.LayoutParams params =
+                      new WindowManager.LayoutParams(
+                          WindowManager.LayoutParams.WRAP_CONTENT,
+                          WindowManager.LayoutParams.WRAP_CONTENT,
+                          type,
+                          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                          PixelFormat.TRANSLUCENT
+                      );
+
+                  params.gravity = Gravity.TOP | Gravity.END;
+                  params.x = 16;
+                  params.y = 140;
+                  manager.addView(panel, params);
+              }
+
+              @Override
+              public void onDestroy() {
+                  if (manager != null && panel != null) {
+                      try {
+                          manager.removeView(panel);
+                      } catch (Exception ignored) {}
+                  }
+                  super.onDestroy();
+              }
+          }
+          """)
+
+          manifest = root / "AndroidManifest.xml"
+          text = manifest.read_text()
+          service_tag = (
+              '<service android:name=".FloatingWindowService" '
+              'android:exported="false" />'
+          )
+
+          if 'android:name=".FloatingWindowService"' not in text:
+              text = text.replace(
+                  "</application>",
+                  "        " + service_tag + "\n    </application>",
+                  1
+              )
+
+          manifest.write_text(text)
+          print("AvSGo Floating Window files created.")
+          PY
+
+          
 
       - name: Install Java 21
         run: |
