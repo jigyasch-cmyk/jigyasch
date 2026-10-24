@@ -105,7 +105,7 @@ jobs:
               }
 
               @Override
-              protected void onResume() {
+              public void onResume() {
                   super.onResume();
                   if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                       || Settings.canDrawOverlays(this)) {
