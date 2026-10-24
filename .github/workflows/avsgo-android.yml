@@ -130,6 +130,7 @@ jobs:
           import android.widget.Button;
           import android.widget.LinearLayout;
           import android.widget.TextView;
+          import android.view.View;
 
           public class FloatingWindowService extends Service {
               private WindowManager manager;
@@ -157,27 +158,42 @@ jobs:
                   panel.setBackgroundColor(Color.rgb(20, 110, 65));
 
                   TextView title = new TextView(this);
-                  title.setText("AvSGo Floating Window");
+                  title.setText("AvSGo Floating Window — tap to expand");
                   title.setTextColor(Color.WHITE);
                   panel.addView(title);
+
                   Button open = new Button(this);
                   open.setText("Full Screen");
                   open.setOnClickListener(v -> {
                       Intent launch = getPackageManager()
                           .getLaunchIntentForPackage(getPackageName());
-
                       if (launch != null) {
                   launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                   launch.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                           startActivity(launch);
-                      }
-                  });
-                  panel.addView(open);
+                          startActivity(launch);
+                       }
+                   });
+                   panel.addView(open);
 
-                  Button close = new Button(this);
-                  close.setText("× Close Window");
-                  close.setOnClickListener(v -> stopSelf());
-                  panel.addView(close);
+                   Button close = new Button(this);
+                   close.setText("× Close Window");
+                   close.setOnClickListener(v -> stopSelf());
+                   panel.addView(close);
+
+                   Button minimize = new Button(this);
+                   minimize.setText("Minimize");
+                   minimize.setOnClickListener(v -> {
+                       open.setVisibility(View.GONE);
+                       close.setVisibility(View.GONE);
+                       minimize.setVisibility(View.GONE);
+                   });
+                   panel.addView(minimize);
+
+                   title.setOnClickListener(v -> {
+                        open.setVisibility(View.VISIBLE);
+                        close.setVisibility(View.VISIBLE);
+                        minimize.setVisibility(View.VISIBLE);
+                   });
 
                   int type = Build.VERSION.SDK_INT >= 26
                       ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
