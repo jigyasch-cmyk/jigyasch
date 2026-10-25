@@ -747,7 +747,9 @@ function AddVehicleDialog({ open, onOpenChange, onAdded }) {
   };
 
   const submit = async () => {
-    if (!form.vehicle_type || !form.plate_no || !form.capacity) return toast.error("Fill all fields");
+    if (!form.vehicle_type || !form.plate_no || !form.capacity) {
+      return toast.error("Fill vehicle type, RC/plate number, and capacity. Photos are optional.");
+    }
     setLoading(true);
     try {
       await api.post("/driver/vehicles", form, { headers: { "x-role": "driver" } });
@@ -825,9 +827,12 @@ function UploadField({ label, fileId, onFile, uploading, testid }) {
         </div>
       )}
       <div className="flex-1">
-        <div className="font-semibold text-sm">{label}</div>
-        <div className="text-xs text-gray-500">{uploading ? "Uploading…" : fileId ? "Uploaded ✓" : "Tap to upload (jpg/png, max 5MB)"}</div>
-      </div>
+        <div className="font-semibold text-sm">
+          {label} <span className="text-gray-400 font-normal">(Optional)</span>
+        </div>
+        <div className="text-xs text-gray-500">
+          {uploading ? "Uploading…" : fileId ? "Uploaded ✓" : "Skip for now, or tap to upload (max 1MB)"}
+        </div>
       <input
         data-testid={testid}
         type="file"
