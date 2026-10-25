@@ -80,7 +80,7 @@ jobs:
           java_dir = root / "java/com/avsgo/app"
           java_dir.mkdir(parents=True, exist_ok=True)
 
-          plugin = java_dir / "AvSGoFloatingWindowPlugin.java"
+          plugin = java_dir / "AvsGoFloatingWindowPlugin.java"
           plugin.write_text(r"""package com.avsgo.app;
 
           import android.content.Intent;
