@@ -323,6 +323,12 @@ jobs:
                   title.setText("AvSGo Driver.Drag here");
                   title.setTextColor(Color.WHITE);
                   title.setTextSize(17);
+
+                  title.setLayoutParams(new LinearLayout.LayoutParams(
+                  WindowManager.LayoutParams.MATCH_PARENT,
+                  WindowManager.LayoutParams.WRAP_CONTENT));
+                  title.setPadding(8, 12, 8, 12);
+                  title.setBackgroundColor(Color.rgb(12, 80, 45));
                   panel.addView(title);
                   enableDrag(title);
                   TextView info = new TextView(this);
@@ -364,6 +370,12 @@ jobs:
                   title.setText("AvSGo • New Bookings: " + bookings.length());
                   title.setTextColor(Color.WHITE);
                   title.setTextSize(17);
+
+                  title.setLayoutParams(new LinearLayout.LayoutParams(
+                  WindowManager.LayoutParams.MATCH_PARENT,
+                  WindowManager.LayoutParams.WRAP_CONTENT));
+                  title.setPadding(8, 12, 8, 12);
+                  title.setBackgroundColor(Color.rgb(12, 80, 45));
                   panel.addView(title);
                   enableDrag(title);
 
