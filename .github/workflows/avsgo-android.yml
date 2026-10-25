@@ -80,7 +80,7 @@ jobs:
           java_dir = root / "java/com/avsgo/app"
           java_dir.mkdir(parents=True, exist_ok=True)
 
-          plugin = java_dir / "AvsGoFloatingWindowPlugin.java"
+          plugin = java_dir / "AvSGoFloatingWindowPlugin.java"
           plugin.write_text(r"""package com.avsgo.app;
 
           import android.content.Intent;
@@ -93,7 +93,7 @@ jobs:
           import com.getcapacitor.annotation.CapacitorPlugin;
 
           @CapacitorPlugin(name = "AvSGoFloatingWindow")
-          public class AvSGoFloatingWindowPlugin extends Plugin {
+          public class AvsGoFloatingWindowPlugin extends Plugin {
               @PluginMethod
               public void start(PluginCall call) {
                   String token = call.getString("token", "");
