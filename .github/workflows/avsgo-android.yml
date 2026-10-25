@@ -80,147 +80,371 @@ jobs:
           java_dir = root / "java/com/avsgo/app"
           java_dir.mkdir(parents=True, exist_ok=True)
 
-          main_activity = java_dir / "MainActivity.java"
-          main_activity.write_text("""package com.avsgo.app;
+          plugin = java_dir / "AvSGoFloatingWindowPlugin.java"
+          plugin.write_text(r"""package com.avsgo.app;
 
           import android.content.Intent;
           import android.net.Uri;
           import android.os.Build;
-          import android.os.Bundle;
           import android.provider.Settings;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+
+          @CapacitorPlugin(name = "AvSGoFloatingWindow")
+          public class AvSGoFloatingWindowPlugin extends Plugin {
+              @PluginMethod
+              public void start(PluginCall call) {
+                  String token = call.getString("token", "");
+                  if (token.isEmpty()) {
+                      call.reject("Driver login token missing");
+                      return;
+                  }
+
+                  if (Build.VERSION.SDK_INT >= 23
+                      && !Settings.canDrawOverlays(getContext())) {
+                      Intent settings = new Intent(
+                          Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                          Uri.parse("package:" + getContext().getPackageName())
+                      );
+                      getActivity().startActivity(settings);
+                      call.reject("Enable AvSGo display-over-other-apps permission, then reopen Driver Panel");
+                      return;
+                  }
+
+                  Intent intent = new Intent(
+                      getContext(), FloatingWindowService.class
+                  );
+                  intent.setAction("START");
+                  intent.putExtra("token", token);
+
+                  if (Build.VERSION.SDK_INT >= 26) {
+                      getContext().startForegroundService(intent);
+                  } else {
+                      getContext().startService(intent);
+                  }
+                  call.resolve();
+              }
+
+              @PluginMethod
+              public void stop(PluginCall call) {
+                  getContext().stopService(new Intent(
+                      getContext(), FloatingWindowService.class
+                  ));
+                  call.resolve();
+              }
+          }
+          """)
+
+          main_activity = java_dir / "MainActivity.java"
+          main_activity.write_text(r"""package com.avsgo.app;
+
+          import android.os.Bundle;
           import com.getcapacitor.BridgeActivity;
 
           public class MainActivity extends BridgeActivity {
               @Override
               public void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(AvsGoFloatingWindowPlugin.class);
                   super.onCreate(savedInstanceState);
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                      && !Settings.canDrawOverlays(this)) {
-                      Intent intent = new Intent(
-                          Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                          Uri.parse("package:" + getPackageName())
-                      );
-                      startActivity(intent);
-                  }
-              }
-
-              @Override
-              public void onResume() {
-                  super.onResume();
-                  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M
-                      || Settings.canDrawOverlays(this)) {
-                      startService(new Intent(this, FloatingWindowService.class));
-                  }
               }
           }
           """)
 
           service = java_dir / "FloatingWindowService.java"
-          service.write_text("""package com.avsgo.app;
+          service.write_text(r"""package com.avsgo.app;
 
-          import android.app.Service;
-          import android.content.Intent;
-          import android.graphics.Color;
-          import android.graphics.PixelFormat;
-          import android.os.Build;
-          import android.os.IBinder;
+          import android.app.*;
+          import android.content.*;
+          import android.graphics.*;
+          import android.os.*;
           import android.provider.Settings;
-          import android.view.Gravity;
-          import android.view.WindowManager;
-          import android.widget.Button;
-          import android.widget.LinearLayout;
-          import android.widget.TextView;
-          import android.view.View;
+          import android.view.*;
+          import android.widget.*;
+          import org.json.*;
+          import java.io.*;
+          import java.net.*;
+          import java.nio.charset.StandardCharsets;
+          import java.util.concurrent.*;
 
           public class FloatingWindowService extends Service {
+              private static final String BASE = "https://avsgo.onrender.com/api";
+              private final Handler handler = new Handler(Looper.getMainLooper());
+              private ExecutorService worker;
               private WindowManager manager;
               private LinearLayout panel;
+              private String token = "";
+              private boolean minimized = false;
+              private boolean busy = false;
 
               @Override
-              public IBinder onBind(Intent intent) {
-                  return null;
-              }
+              public IBinder onBind(Intent i) { return null; }
 
               @Override
-              public void onCreate() {
-                  super.onCreate();
-
-                  if (Build.VERSION.SDK_INT >= 23
-                      && !Settings.canDrawOverlays(this)) {
+              public int onStartCommand(Intent intent, int flags, int id) {
+                  if (intent != null && intent.getStringExtra("token") != null) {
+                      token = intent.getStringExtra("token");
+                  }
+                  if (token.isEmpty()) {
                       stopSelf();
-                      return;
+                      return START_NOT_STICKY;
                   }
 
-                  manager = (WindowManager) getSystemService(WINDOW_SERVICE);
+                  createChannel();
+                  Notification notification = new Notification.Builder(this, "avsgo_float")
+                      .setContentTitle("AvSGo Driver")
+                      .setContentText("Booking requests are being checked")
+                      .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                      .setOngoing(true)
+                      .build();
+                  startForeground(701, notification);
+
+                  if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
+                      stopSelf();
+                      return START_NOT_STICKY;
+                  }
+
+                  if (manager == null) createWindow();
+                  if (worker == null || worker.isShutdown()) {
+                      worker = Executors.newSingleThreadExecutor();
+                      worker.execute(() -> {
+                          while (!Thread.currentThread().isInterrupted()) {
+                              try {
+                                  String result = request("GET", "/driver/bookings", null);
+                                  JSONArray all = new JSONArray(result);
+                                  JSONArray pending = new JSONArray();
+                                  for (int i = 0; i < all.length(); i++) {
+                                      JSONObject b = all.optJSONObject(i);
+                                      if (b != null && "requested".equals(b.optString("status"))) {
+                                          pending.put(b);
+                                      }
+                                  }
+                                  handler.post(() -> renderBookings(pending));
+                                  Thread.sleep(5000);
+                              } catch (InterruptedException e) {
+                                  Thread.currentThread().interrupt();
+                                  break;
+                              } catch (Exception e) {
+                                  handler.post(() -> showMessage("Could not refresh bookings. Check internet."));
+                                  try { Thread.sleep(7000); }
+                                  catch (InterruptedException x) {
+                                      Thread.currentThread().interrupt();
+                                      break;
+                                  }
+                              }
+                          }
+                      });
+                  }
+                  return START_NOT_STICKY;
+              }
+
+              private void createChannel() {
+                  if (Build.VERSION.SDK_INT >= 26) {
+                      NotificationChannel channel = new NotificationChannel(
+                          "avsgo_float", "AvSGo Driver Window",
+                          NotificationManager.IMPORTANCE_LOW
+                      );
+                      ((NotificationManager)getSystemService(NOTIFICATION_SERVICE))
+                          .createNotificationChannel(channel);
+                  }
+              }
+
+              private void createWindow() {
+                  manager = (WindowManager)getSystemService(WINDOW_SERVICE);
                   panel = new LinearLayout(this);
                   panel.setOrientation(LinearLayout.VERTICAL);
                   panel.setPadding(12, 8, 12, 8);
                   panel.setBackgroundColor(Color.rgb(20, 110, 65));
 
-                  TextView title = new TextView(this);
-                  title.setText("AvSGo Floating Window — tap to expand");
-                  title.setTextColor(Color.WHITE);
-                  panel.addView(title);
-
-                  Button open = new Button(this);
-                  open.setText("Full Screen");
-                  open.setOnClickListener(v -> {
-                      Intent launch = getPackageManager()
-                          .getLaunchIntentForPackage(getPackageName());
-                      if (launch != null) {
-                  launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                  launch.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                          startActivity(launch);
-                       }
-                   });
-                   panel.addView(open);
-
-                   Button close = new Button(this);
-                   close.setText("× Close Window");
-                   close.setOnClickListener(v -> stopSelf());
-                   panel.addView(close);
-
-                   Button minimize = new Button(this);
-                   minimize.setText("Minimize");
-                   minimize.setOnClickListener(v -> {
-                       open.setVisibility(View.GONE);
-                       close.setVisibility(View.GONE);
-                       minimize.setVisibility(View.GONE);
-                   });
-                   panel.addView(minimize);
-
-                   title.setOnClickListener(v -> {
-                        open.setVisibility(View.VISIBLE);
-                        close.setVisibility(View.VISIBLE);
-                        minimize.setVisibility(View.VISIBLE);
-                   });
-
                   int type = Build.VERSION.SDK_INT >= 26
                       ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                       : WindowManager.LayoutParams.TYPE_PHONE;
 
-                  WindowManager.LayoutParams params =
-                      new WindowManager.LayoutParams(
-                          WindowManager.LayoutParams.WRAP_CONTENT,
-                          WindowManager.LayoutParams.WRAP_CONTENT,
-                          type,
-                          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                          PixelFormat.TRANSLUCENT
-                      );
-
+                  WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      type,
+                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                      PixelFormat.TRANSLUCENT
+                  );
                   params.gravity = Gravity.TOP | Gravity.END;
-                  params.x = 16;
-                  params.y = 140;
+                  params.x = 12;
+                  params.y = 100;
                   manager.addView(panel, params);
+                  showMessage("Checking new bookings…");
+              }
+
+              private void addButton(LinearLayout box, String label, Runnable action) {
+                  Button button = new Button(this);
+                  button.setText(label);
+                  button.setOnClickListener(v -> action.run());
+                  box.addView(button);
+              }
+
+              private void showMessage(String message) {
+                  if (panel == null) return;
+                  panel.removeAllViews();
+                  TextView title = new TextView(this);
+                  title.setText("AvSGo Driver");
+                  title.setTextColor(Color.WHITE);
+                  title.setTextSize(17);
+                  panel.addView(title);
+                  TextView info = new TextView(this);
+                  info.setText(message);
+                  info.setTextColor(Color.WHITE);
+                  panel.addView(info);
+                  addControls();
+              }
+
+              private void addControls() {
+                  addButton(panel, "Full Screen", () -> {
+                      Intent launch = getPackageManager()
+                          .getLaunchIntentForPackage(getPackageName());
+                      if (launch != null) {
+                          launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                              | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                          startActivity(launch);
+                      }
+                  });
+                  addButton(panel, minimized ? "Expand" : "Minimize", () -> {
+                      minimized = !minimized;
+                      if (minimized) {
+                          showMessage("Window minimized — tap Expand");
+                      } else {
+                          refreshNow();
+                      }
+                  });
+                  addButton(panel, "Close Window", this::stopSelf);
+              }
+
+              private void renderBookings(JSONArray bookings) {
+                  if (panel == null) return;
+                  if (minimized) {
+                      showMessage("Window minimized — tap Expand");
+                      return;
+                  }
+                  panel.removeAllViews();
+                  TextView title = new TextView(this);
+                  title.setText("AvSGo • New Bookings: " + bookings.length());
+                  title.setTextColor(Color.WHITE);
+                  title.setTextSize(17);
+                  panel.addView(title);
+
+                  if (bookings.length() == 0) {
+                      TextView empty = new TextView(this);
+                      empty.setText("Waiting for booking requests…");
+                      empty.setTextColor(Color.WHITE);
+                      panel.addView(empty);
+                  }
+
+                  for (int i = 0; i < bookings.length(); i++) {
+                      JSONObject b = bookings.optJSONObject(i);
+                      if (b == null) continue;
+                      String id = b.optString("id");
+                      TextView detail = new TextView(this);
+                      detail.setText("Pickup: " + b.optString("pickup", "—")
+                          + "\nDrop: " + b.optString("drop", "—")
+                          + "\nVehicle: " + b.optString("vehicle_type", "—"));
+                      detail.setTextColor(Color.WHITE);
+                      detail.setPadding(0, 8, 0, 4);
+                      panel.addView(detail);
+
+                      LinearLayout actions = new LinearLayout(this);
+                      actions.setOrientation(LinearLayout.HORIZONTAL);
+                      addButton(actions, "Accept", () -> act(id, "accept"));
+                      addButton(actions, "Reject", () -> act(id, "reject"));
+                      panel.addView(actions);
+                  }
+                  addControls();
+              }
+
+              private void refreshNow() {
+                  if (worker != null && !worker.isShutdown()) {
+                      worker.execute(() -> {
+                          try {
+                              JSONArray all = new JSONArray(
+                                  request("GET", "/driver/bookings", null));
+                              JSONArray pending = new JSONArray();
+                              for (int i = 0; i < all.length(); i++) {
+                                  JSONObject b = all.optJSONObject(i);
+                                  if (b != null && "requested".equals(b.optString("status"))) {
+                                      pending.put(b);
+                                  }
+                              }
+                              handler.post(() -> renderBookings(pending));
+                          } catch (Exception e) {
+                              handler.post(() -> showMessage("Refresh failed. Check internet."));
+                          }
+                      });
+                  }
+              }
+
+              private void act(String id, String action) {
+                  if (busy || id == null || id.isEmpty()) return;
+                  busy = true;
+                  if (worker == null || worker.isShutdown()) {
+                      busy = false;
+                      return;
+                  }
+                  worker.execute(() -> {
+                      try {
+                          JSONObject body = new JSONObject();
+                          body.put("action", action);
+                          request("PATCH", "/driver/bookings/" + id, body);
+                          handler.post(() -> showMessage("Booking " + action + " submitted"));
+                      } catch (Exception e) {
+                          handler.post(() -> showMessage(
+                              "Action failed. Refresh Driver Panel and try again."));
+                      } finally {
+                          busy = false;
+                          handler.postDelayed(this::refreshNow, 1200);
+                      }
+                  });
+              }
+
+              private String request(String method, String path, JSONObject body)
+                  throws Exception {
+                  HttpURLConnection conn = (HttpURLConnection)
+                      new URL(BASE + path).openConnection();
+                  conn.setRequestMethod(method);
+                  conn.setConnectTimeout(10000);
+                  conn.setReadTimeout(10000);
+                  conn.setRequestProperty("Authorization", "Bearer " + token);
+                  conn.setRequestProperty("x-role", "driver");
+                  conn.setRequestProperty("Content-Type", "application/json");
+                  if (body != null) {
+                      conn.setDoOutput(true);
+                      try (OutputStream out = conn.getOutputStream()) {
+                          out.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                      }
+                  }
+                  int code = conn.getResponseCode();
+                  InputStream stream = code >= 200 && code < 400
+                      ? conn.getInputStream() : conn.getErrorStream();
+                  ByteArrayOutputStream out = new ByteArrayOutputStream();
+                  if (stream != null) {
+                      byte[] buffer = new byte[2048];
+                      int n;
+                      while ((n = stream.read(buffer)) != -1) out.write(buffer, 0, n);
+                      stream.close();
+                  }
+                  String response = out.toString("UTF-8");
+                  conn.disconnect();
+                  if (code < 200 || code >= 300) {
+                      throw new IOException("HTTP " + code + ": " + response);
+                  }
+                  return response;
               }
 
               @Override
               public void onDestroy() {
+                  if (worker != null) worker.shutdownNow();
+                  handler.removeCallbacksAndMessages(null);
                   if (manager != null && panel != null) {
-                      try {
-                          manager.removeView(panel);
-                      } catch (Exception ignored) {}
+                      try { manager.removeView(panel); } catch (Exception ignored) {}
                   }
+                  stopForeground(true);
                   super.onDestroy();
               }
           }
@@ -228,20 +452,25 @@ jobs:
 
           manifest = root / "AndroidManifest.xml"
           text = manifest.read_text()
+          permissions = [
+              '<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />',
+              '<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />',
+              '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />',
+              '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
+          ]
+          for permission in permissions:
+              if permission not in text:
+                  text = text.replace("<application", permission + "\n    <application", 1)
+
           service_tag = (
               '<service android:name=".FloatingWindowService" '
-              'android:exported="false" />'
+              'android:exported="false" android:foregroundServiceType="dataSync" />'
           )
-
           if 'android:name=".FloatingWindowService"' not in text:
-              text = text.replace(
-                  "</application>",
-                  "        " + service_tag + "\n    </application>",
-                  1
-              )
+              text = text.replace("</application>", "        " + service_tag + "\n    </application>", 1)
 
           manifest.write_text(text)
-          print("AvSGo Floating Window files created.")
+          print("AvSGo Floating Window plugin and service created.")
           PY
 
           
