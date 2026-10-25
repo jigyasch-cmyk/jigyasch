@@ -172,7 +172,8 @@ jobs:
               private static final String BASE = "https://avsgo.onrender.com/api";
               private final Handler handler = new Handler(Looper.getMainLooper());
               private ExecutorService worker;
-              
+              private WindowManager manager;
+              private LinearLayout panel;
               
               private WindowManager.LayoutParams windowParams;
               private float touchX, touchY;
@@ -408,7 +409,7 @@ jobs:
                                   }
                               }
                               handler.post(() -> renderBookings(pending));
-                              enableDrag(title);
+                              
                           } catch (Exception e) {
                               handler.post(() -> showMessage("Refresh failed. Check internet."));
                           }
