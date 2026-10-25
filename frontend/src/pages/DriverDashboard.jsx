@@ -833,6 +833,7 @@ function UploadField({ label, fileId, onFile, uploading, testid }) {
         <div className="text-xs text-gray-500">
           {uploading ? "Uploading…" : fileId ? "Uploaded ✓" : "Skip for now, or tap to upload (max 1MB)"}
         </div>
+      </div>
       <input
         data-testid={testid}
         type="file"
