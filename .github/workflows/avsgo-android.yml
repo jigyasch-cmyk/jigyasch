@@ -323,7 +323,7 @@ jobs:
                   title.setTextColor(Color.WHITE);
                   title.setTextSize(17);
                   panel.addView(title);
-                  enableDrag(tittle);
+                  enableDrag(title);
                   TextView info = new TextView(this);
                   info.setText(message);
                   info.setTextColor(Color.WHITE);
@@ -364,6 +364,7 @@ jobs:
                   title.setTextColor(Color.WHITE);
                   title.setTextSize(17);
                   panel.addView(title);
+                  enableDrag(title);
 
                   if (bookings.length() == 0) {
                       TextView empty = new TextView(this);
@@ -407,7 +408,7 @@ jobs:
                                   }
                               }
                               handler.post(() -> renderBookings(pending));
-                              enableDrag(tittle);
+                              enableDrag(title);
                           } catch (Exception e) {
                               handler.post(() -> showMessage("Refresh failed. Check internet."));
                           }
