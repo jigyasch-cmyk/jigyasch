@@ -172,8 +172,11 @@ jobs:
               private static final String BASE = "https://avsgo.onrender.com/api";
               private final Handler handler = new Handler(Looper.getMainLooper());
               private ExecutorService worker;
-              private WindowManager manager;
-              private LinearLayout panel;
+              
+              
+              private WindowManager.LayoutParams windowParams;
+              private float touchX, touchY;
+              private int startX, startY;
               private String token = "";
               private boolean minimized = false;
               private boolean busy = false;
@@ -261,19 +264,49 @@ jobs:
                       ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                       : WindowManager.LayoutParams.TYPE_PHONE;
 
-                  WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                      windowParams = new WindowManager.LayoutParams(
                       WindowManager.LayoutParams.WRAP_CONTENT,
                       WindowManager.LayoutParams.WRAP_CONTENT,
-                      type,
-                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                      PixelFormat.TRANSLUCENT
-                  );
-                  params.gravity = Gravity.TOP | Gravity.END;
-                  params.x = 12;
-                  params.y = 100;
-                  manager.addView(panel, params);
+                  type,
+                  WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                  PixelFormat.TRANSLUCENT
+               );
+                windowParams.gravity = Gravity.TOP | Gravity.END;
+                windowParams.x = 12;
+                windowParams.y = 100;
+                manager.addView(panel, windowParams);
+
                   showMessage("Checking new bookings…");
               }
+              
+              private void enableDrag(View handle) {
+                handle.setOnTouchListener((view, event) -> {
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_DOWN:
+                            touchX = event.getRawX();
+                            touchY = event.getRawY();
+                            startX = windowParams.x;
+                            startY = windowParams.y;
+                            return true;
+
+                        case MotionEvent.ACTION_MOVE:
+                            windowParams.x = startX
+                                + Math.round(touchX - event.getRawX());
+                            windowParams.y = startY
+                                + Math.round(event.getRawY() - touchY);
+                            try {
+                                manager.updateViewLayout(panel, windowParams);
+                            } catch (Exception e) {
+                                return false;
+                            }
+                            return true;
+
+                        case MotionEvent.ACTION_UP:
+                            return true;
+                    }
+                    return false;
+                 });
+             }
 
               private void addButton(LinearLayout box, String label, Runnable action) {
                   Button button = new Button(this);
@@ -286,10 +319,11 @@ jobs:
                   if (panel == null) return;
                   panel.removeAllViews();
                   TextView title = new TextView(this);
-                  title.setText("AvSGo Driver");
+                  title.setText("AvSGo Driver.Drag here");
                   title.setTextColor(Color.WHITE);
                   title.setTextSize(17);
                   panel.addView(title);
+                  enableDrag(tittle);
                   TextView info = new TextView(this);
                   info.setText(message);
                   info.setTextColor(Color.WHITE);
@@ -373,6 +407,7 @@ jobs:
                                   }
                               }
                               handler.post(() -> renderBookings(pending));
+                              enableDrag(tittle);
                           } catch (Exception e) {
                               handler.post(() -> showMessage("Refresh failed. Check internet."));
                           }
