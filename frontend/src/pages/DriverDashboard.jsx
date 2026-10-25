@@ -15,6 +15,10 @@ import NotificationBell from "@/components/NotificationBell";
 import LiveTripMap from "@/components/LiveTripMap";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { registerPlugin } from "@capacitor/core";
+
+const AvSGoFloatingWindow =
+  registerPlugin("AvSGoFloatingWindow");
 
 
 export default function DriverDashboard() {
@@ -29,6 +33,19 @@ export default function DriverDashboard() {
   const [payOpen, setPayOpen] = useState(false);
 
   const authHeaders = { headers: { "x-role": "driver" } };
+
+useEffect(() => {
+    const token = localStorage.getItem("avsgo_driver_token");
+    if (!driver.id || !token) return;
+
+    AvSGoFloatingWindow.start({ token }).catch((error) => {
+      console.warn("Floating Window could not start:", error);
+    });
+
+    return () => {
+      AvSGoFloatingWindow.stop().catch(() => {});
+    };
+  }, []);
 
   const load = async () => {
     try {
@@ -89,6 +106,12 @@ const logout = async () => {
     );
   } catch (e) {
     // Ignore offline update error
+  }
+
+try {
+    await AvSGoFloatingWindow.stop();
+  } catch (e) {
+    // Ignore if the floating window is already stopped.
   }
 
   nav("/");
