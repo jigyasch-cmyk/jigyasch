@@ -166,6 +166,11 @@ jobs:
           import java.io.*;
           import java.net.*;
           import java.nio.charset.StandardCharsets;
+
+          import java.text.SimpleDateFormat;
+          import java.util.Date;
+          import java.util.Locale;
+          import java.util.TimeZone;
           import java.util.concurrent.*;
 
           public class FloatingWindowService extends Service {
@@ -358,54 +363,163 @@ jobs:
                   });
                   addButton(panel, "Close Window", this::stopSelf);
               }
+              
+          private long expiryMillis(JSONObject booking) {
+              String value = booking.optString("request_expires_at", "");
 
-              private void renderBookings(JSONArray bookings) {
-                  if (panel == null) return;
-                  if (minimized) {
-                      showMessage("Window minimized — tap Expand");
-                      return;
-                  }
-                  panel.removeAllViews();
-                  TextView title = new TextView(this);
-                  title.setText("AvSGo • New Bookings: " + bookings.length());
-                  title.setTextColor(Color.WHITE);
-                  title.setTextSize(17);
-
-                  title.setLayoutParams(new LinearLayout.LayoutParams(
-                  WindowManager.LayoutParams.MATCH_PARENT,
-                  WindowManager.LayoutParams.WRAP_CONTENT));
-                  title.setPadding(8, 12, 8, 12);
-                  title.setBackgroundColor(Color.rgb(12, 80, 45));
-                  panel.addView(title);
-                  enableDrag(title);
-
-                  if (bookings.length() == 0) {
-                      TextView empty = new TextView(this);
-                      empty.setText("Waiting for booking requests…");
-                      empty.setTextColor(Color.WHITE);
-                      panel.addView(empty);
-                  }
-
-                  for (int i = 0; i < bookings.length(); i++) {
-                      JSONObject b = bookings.optJSONObject(i);
-                      if (b == null) continue;
-                      String id = b.optString("id");
-                      TextView detail = new TextView(this);
-                      detail.setText("Pickup: " + b.optString("pickup", "—")
-                          + "\nDrop: " + b.optString("drop", "—")
-                          + "\nVehicle: " + b.optString("vehicle_type", "—"));
-                      detail.setTextColor(Color.WHITE);
-                      detail.setPadding(0, 8, 0, 4);
-                      panel.addView(detail);
-
-                      LinearLayout actions = new LinearLayout(this);
-                      actions.setOrientation(LinearLayout.HORIZONTAL);
-                      addButton(actions, "Accept", () -> act(id, "accept"));
-                      addButton(actions, "Reject", () -> act(id, "reject"));
-                      panel.addView(actions);
-                  }
-                  addControls();
+              if (value.isEmpty() || "null".equals(value)) {
+                  return -1L;
               }
+
+              try {
+                  String timestamp = value.length() >= 19
+                      ? value.substring(0, 19)
+                      : value;
+
+                  SimpleDateFormat format = new SimpleDateFormat(
+                      "yyyy-MM-dd'T'HH:mm:ss",
+                      Locale.US
+                  );
+                  format.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+                  Date date = format.parse(timestamp);
+                  return date == null ? -1L : date.getTime();
+              } catch (Exception e) {
+                  return -1L;
+              }
+          }
+              
+
+          private void renderBookings(JSONArray bookings) {
+              if (panel == null || minimized) return;
+
+              panel.removeAllViews();
+
+              TextView title = new TextView(this);
+              title.setText("AvSGo • New Bookings: " + bookings.length()
+                  + "\nDrag here to move");
+              title.setTextColor(Color.WHITE);
+              title.setTextSize(17);
+              title.setPadding(8, 12, 8, 12);
+              title.setBackgroundColor(Color.rgb(12, 80, 45));
+              panel.addView(title);
+              enableDrag(title);
+
+              if (bookings.length() == 0) {
+                  TextView empty = new TextView(this);
+                  empty.setText("Waiting for booking requests…");
+                  empty.setTextColor(Color.WHITE);
+                  empty.setPadding(4, 12, 4, 12);
+                  panel.addView(empty);
+              }
+
+              for (int i = 0; i < bookings.length(); i++) {
+                  JSONObject b = bookings.optJSONObject(i);
+                  if (b == null) continue;
+
+                  final String id = b.optString("id", "");
+                  final long expiresAt = expiryMillis(b);
+
+                  TextView detail = new TextView(this);
+                  detail.setText(
+                      "Pickup: " + b.optString("pickup", "—")
+                      + "\nDrop: " + b.optString("drop_location", "—")
+                      + "\nVehicle: " + b.optString("vehicle_type", "—")
+                      + "\nFare: ₹" + b.optString("fare", "—")
+                  );
+                  detail.setTextColor(Color.WHITE);
+                  detail.setPadding(4, 10, 4, 8);
+                  panel.addView(detail);
+
+                  TextView timer = new TextView(this);
+                  timer.setTextColor(Color.YELLOW);
+                  timer.setTextSize(15);
+                  panel.addView(timer);
+
+                  LinearLayout actions = new LinearLayout(this);
+                  actions.setOrientation(LinearLayout.HORIZONTAL);
+
+                  Button accept = new Button(this);
+                  accept.setText("Accept");
+                  actions.addView(accept);
+
+                  Button reject = new Button(this);
+                  reject.setText("Reject");
+                  actions.addView(reject);
+
+                  panel.addView(actions);
+
+                  Runnable updateTimer = new Runnable() {
+                      @Override
+                      public void run() {
+                          if (panel == null || timer.getParent() == null) {
+                              return;
+                          }
+
+                          if (expiresAt <= 0) {
+                              timer.setText("Expiry time unavailable");
+                              accept.setEnabled(false);
+                              reject.setEnabled(false);
+                              return;
+                          }
+
+                          long remaining = Math.max(
+                              0L,
+                              (expiresAt - System.currentTimeMillis() + 999L)
+                                  / 1000L
+                          );
+
+                          if (remaining <= 0) {
+                              timer.setText("Request expired");
+                              accept.setEnabled(false);
+                              reject.setEnabled(false);
+                              return;
+                          }
+
+                          timer.setText(
+                              "Accept within " + remaining + " seconds"
+                          );
+                          handler.postDelayed(this, 1000);
+                      }
+                  };
+
+                  updateTimer.run();
+
+                  accept.setOnClickListener(v -> {
+                      if (busy) return;
+
+                      if (expiresAt <= 0 ||
+                          System.currentTimeMillis() >= expiresAt) {
+                          timer.setText("Request expired");
+                          accept.setEnabled(false);
+                          reject.setEnabled(false);
+                          return;
+                      }
+
+                      accept.setEnabled(false);
+                      reject.setEnabled(false);
+                      act(id, "accept");
+                  });
+
+                  reject.setOnClickListener(v -> {
+                      if (busy) return;
+
+                      if (expiresAt <= 0 ||
+                          System.currentTimeMillis() >= expiresAt) {
+                          timer.setText("Request expired");
+                          accept.setEnabled(false);
+                          reject.setEnabled(false);
+                          return;
+                      }
+
+                      accept.setEnabled(false);
+                      reject.setEnabled(false);
+                      act(id, "reject");
+                  });
+              }
+
+              addControls();
+          }
 
               private void refreshNow() {
                   if (worker != null && !worker.isShutdown()) {
