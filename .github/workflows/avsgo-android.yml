@@ -285,34 +285,53 @@ jobs:
                   showMessage("Checking new bookings…");
               }
               
+              
               private void enableDrag(View handle) {
-                handle.setOnTouchListener((view, event) -> {
-                    switch (event.getAction()) {
-                        case MotionEvent.ACTION_DOWN:
-                            touchX = event.getRawX();
-                            touchY = event.getRawY();
-                            startX = windowParams.x;
-                            startY = windowParams.y;
-                            return true;
+                  handle.setOnTouchListener((view, event) -> {
+                      switch (event.getAction()) {
+                          case MotionEvent.ACTION_DOWN:
+                              touchX = event.getRawX();
+                              touchY = event.getRawY();
+                              startX = windowParams.x;
+                              startY = windowParams.y;
+                              return true;
 
-                        case MotionEvent.ACTION_MOVE:
-                            windowParams.x = startX
-                                + Math.round(touchX - event.getRawX());
-                            windowParams.y = startY
-                                + Math.round(event.getRawY() - touchY);
-                            try {
-                                manager.updateViewLayout(panel, windowParams);
-                            } catch (Exception e) {
-                                return false;
-                            }
-                            return true;
+                          case MotionEvent.ACTION_MOVE:
+                              int dx = Math.round(
+                                  touchX - event.getRawX()
+                              );
+                              int dy = Math.round(
+                                  event.getRawY() - touchY
+                              );
 
-                        case MotionEvent.ACTION_UP:
-                            return true;
-                    }
-                    return false;
-                 });
-             }
+                              windowParams.x = Math.max(
+                                  0, startX + dx
+                              );
+                              windowParams.y = Math.max(
+                                  0, startY + dy
+                              );
+
+                              try {
+                                  manager.updateViewLayout(
+                                      panel, windowParams
+                                  );
+                              } catch (Exception e) {
+                                  android.util.Log.e(
+                                      "AvSGoFloat",
+                                      "Drag failed",
+                                      e
+                                  );
+                              }
+                              return true;
+
+                          case MotionEvent.ACTION_UP:
+                          case MotionEvent.ACTION_CANCEL:
+                              return true;
+                      }
+                      return true;
+                  });
+              }
+
 
               private void addButton(LinearLayout box, String label, Runnable action) {
                   Button button = new Button(this);
