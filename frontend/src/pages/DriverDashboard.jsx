@@ -34,6 +34,7 @@ export default function DriverDashboard() {
 
   const authHeaders = { headers: { "x-role": "driver" } };
 
+  
 useEffect(() => {
     const token = localStorage.getItem("avsgo_driver_token");
     if (!driver.id || !token) return;
@@ -41,11 +42,10 @@ useEffect(() => {
     AvSGoFloatingWindow.start({ token }).catch((error) => {
       console.warn("Floating Window could not start:", error);
     });
+  }, [driver.id]);
 
-    return () => {
-      AvSGoFloatingWindow.stop().catch(() => {});
-    };
-  }, []);
+
+
 
   const load = async () => {
     try {
