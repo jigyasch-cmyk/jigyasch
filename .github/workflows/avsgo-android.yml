@@ -87,6 +87,8 @@ jobs:
           import android.net.Uri;
           import android.os.Build;
           import android.provider.Settings;
+          import com.getcapacitor.ActivityCallback;
+          import com.getcapacitor.ActivityResult;
           import com.getcapacitor.Plugin;
           import com.getcapacitor.PluginCall;
           import com.getcapacitor.PluginMethod;
@@ -103,29 +105,58 @@ jobs:
                   }
 
                   if (Build.VERSION.SDK_INT >= 23
-                      && !Settings.canDrawOverlays(getContext())) {
+                  && !Settings.canDrawOverlays(getContext())) {
                       Intent settings = new Intent(
-                          Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                  Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                           Uri.parse("package:" + getContext().getPackageName())
                       );
-                      getActivity().startActivity(settings);
-                      call.reject("Enable AvSGo display-over-other-apps permission, then reopen Driver Panel");
+                      startActivityForResult(
+                          call, settings, "overlayPermissionResult"
+                      );
                       return;
                   }
 
-                  Intent intent = new Intent(
-                      getContext(), FloatingWindowService.class
-                  );
-                  intent.setAction("START");
-                  intent.putExtra("token", token);
+                  startFloatingService(token);
+                  call.resolve();
+                  }
 
-                  if (Build.VERSION.SDK_INT >= 26) {
-                      getContext().startForegroundService(intent);
+                  @ActivityCallback
+                  private void overlayPermissionResult(
+                      PluginCall call,
+                      ActivityResult result
+                  ) {
+                      if (call == null) return;
+
+                      if (Build.VERSION.SDK_INT >= 23
+                          && !Settings.canDrawOverlays(getContext())) {
+                          call.reject("Floating Window permission not granted");
+                          return;
+                      }
+
+                      String token = call.getString("token", "");
+                      if (token.isEmpty()) {
+                      call.reject("Driver login token missing");
+                          return;
+                      }
+
+                      startFloatingService(token);
+                      call.resolve();
+                  }
+
+                  private void startFloatingService(String token) {
+                      Intent intent = new Intent(
+                          getContext(), FloatingWindowService.class
+                      );
+                      intent.setAction("START");
+                      intent.putExtra("token", token);
+
+                      if (Build.VERSION.SDK_INT >= 26) {
+              getContext().startForegroundService(intent);
                   } else {
                       getContext().startService(intent);
                   }
-                  call.resolve();
               }
+              
 
               @PluginMethod
               public void stop(PluginCall call) {
