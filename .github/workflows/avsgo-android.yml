@@ -234,16 +234,36 @@ jobs:
                               } catch (InterruptedException e) {
                                   Thread.currentThread().interrupt();
                                   break;
+                              
                               } catch (Exception e) {
-                                  handler.post(() -> showMessage("Could not refresh bookings. Check internet."));
-                                  try { Thread.sleep(7000); }
-                                  catch (InterruptedException x) {
-                                      Thread.currentThread().interrupt();
+                                  String errorMessage = e.getMessage();
+                                  if (errorMessage == null || errorMessage.trim().isEmpty()) {
+                              errorMessage = e.getClass().getSimpleName();
+                              }
+
+                              final String visibleError = errorMessage;
+                                  android.util.Log.e(
+                                      "AvSGoFloat",
+                                      "Booking refresh failed",
+                                      e
+                                  );
+
+                                  handler.post(() -> showMessage(
+                                      "Booking refresh failed: " + visibleError
+                                  ));
+
+                                  try {
+                                      Thread.sleep(7000);
+                                  } catch (InterruptedException x) {
+                              Thread.currentThread().interrupt();
                                       break;
                                   }
                               }
                           }
-                      });
+
+                      
+                  });
+                      
                   }
                   return START_STICKY;
               }
