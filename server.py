@@ -1760,6 +1760,25 @@ async def admin_vehicle_availability(
             409, "Vehicle availability update failed"
         )
 
+    availability_text = (
+        "Available" if payload.available else "Not Available"
+    )
+
+    await send_push(
+        f"driver:{vehicle['owner_id']}",
+        f"Vehicle {availability_text}",
+        (
+            f"Admin has marked your {vehicle['vehicle_type']} "
+            f"({vehicle.get('plate_no', 'vehicle')}) as "
+            f"{availability_text}."
+        ),
+        {
+            "url": "/driver",
+            "type": "vehicle_availability",
+            "vehicle_id": vehicle_id
+        },
+    )
+
     return {
         "id": vehicle_id,
         "status": "approved",
