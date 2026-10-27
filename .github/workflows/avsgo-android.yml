@@ -87,8 +87,10 @@ jobs:
           import android.net.Uri;
           import android.os.Build;
           import android.provider.Settings;
-          import com.getcapacitor.ActivityCallback;
-          import com.getcapacitor.ActivityResult;
+          
+          import com.getcapacitor.annotation.ActivityCallback;
+          import androidx.activity.result.ActivityResult;
+
           import com.getcapacitor.Plugin;
           import com.getcapacitor.PluginCall;
           import com.getcapacitor.PluginMethod;
