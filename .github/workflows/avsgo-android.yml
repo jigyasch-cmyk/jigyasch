@@ -301,6 +301,21 @@ jobs:
                   }
               }
 
+              
+              @Override
+              public int onStartCommand(Intent intent, int flags, int startId) {
+                  if (intent != null && intent.getStringExtra("token") != null) {
+                      token = intent.getStringExtra("token");
+                  }
+
+                  if (token.isEmpty()) {
+                      stopSelf();
+                      return START_NOT_STICKY;
+                  }
+
+                  
+
+
                   
 
                   createChannel();
