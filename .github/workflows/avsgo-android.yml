@@ -51,7 +51,9 @@ jobs:
           permissions = [
               '<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
               '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />',
-              '<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />'
+              '<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />',
+              '<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />',
+              '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />',
           ]
 
           for permission in permissions:
@@ -95,7 +97,11 @@ jobs:
           import com.getcapacitor.PluginCall;
           import com.getcapacitor.PluginMethod;
           import com.getcapacitor.annotation.CapacitorPlugin;
-
+          
+          import android.location.Location;
+          import android.location.LocationListener;
+          import android.location.LocationManager;
+          import android.content.pm.PackageManager;
           @CapacitorPlugin(name = "AvSGoFloatingWindow")
           public class AvSGoFloatingWindowPlugin extends Plugin {
               @PluginMethod
@@ -210,6 +216,11 @@ jobs:
               private static final String BASE = "https://avsgo.onrender.com/api";
               private final Handler handler = new Handler(Looper.getMainLooper());
               private ExecutorService worker;
+
+              private LocationManager locationManager;
+              private LocationListener locationListener;
+              private final ExecutorService locationUploader =
+                  Executors.newSingleThreadExecutor();
               private WindowManager manager;
               private LinearLayout panel;
               
@@ -232,6 +243,85 @@ jobs:
                       stopSelf();
                       return START_NOT_STICKY;
                   }
+                  private void startBackgroundLocation() {
+                      if (Build.VERSION.SDK_INT >= 23 &&
+                          checkSelfPermission(
+                  android.Manifest.permission.ACCESS_FINE_LOCATION
+                          ) != PackageManager.PERMISSION_GRANTED &&
+                          checkSelfPermission(
+                  android.Manifest.permission.ACCESS_COARSE_LOCATION
+                          ) != PackageManager.PERMISSION_GRANTED) {
+                          android.util.Log.e(
+                               "AvSGoFloat",
+                               "Location permission not granted"
+                          );
+                          return;
+                      }
+
+                      try {
+                          locationManager = (LocationManager)
+                  getSystemService(LOCATION_SERVICE);
+
+                          if (locationManager == null) return;
+
+                          if (locationListener != null) {
+                              locationManager.removeUpdates(locationListener);
+                          }
+
+                          locationListener = new LocationListener() {
+                              @Override
+                              public void onLocationChanged(Location location) {
+                                  JSONObject body = new JSONObject();
+
+                                  try {
+                                      body.put("lat", location.getLatitude());
+                                      body.put("lng", location.getLongitude());
+                                      body.put("accuracy", location.getAccuracy());
+                                  } catch (Exception e) {
+                                      return;
+                                  }
+
+                                  locationUploader.execute(() -> {
+                                      try {
+                                          request("POST", "/driver/location", body);
+                                      } catch (Exception e) {
+                                          android.util.Log.e(
+                                              "AvSGoFloat",
+                                              "Background location upload failed",
+                                              e
+                                          );
+                        
+                                      }
+                                  });
+                              }
+                          };
+
+                          locationManager.requestLocationUpdates(
+                              LocationManager.GPS_PROVIDER,
+                              5000L,
+                              0f,
+                              locationListener
+                          );
+
+                          android.util.Log.d(
+                              "AvSGoFloat",
+                              "Background GPS updates started"
+                          );
+
+                      } catch (SecurityException e) {
+                          android.util.Log.e(
+                              "AvSGoFloat",
+                              "GPS permission denied",
+                              e
+                          );
+                      } catch (Exception e) {
+                          android.util.Log.e(
+                              "AvSGoFloat",
+                              "Could not start GPS updates",
+                               e
+                          );
+                      }
+                  }
 
                   createChannel();
                   Notification notification = new Notification.Builder(this, "avsgo_float")
@@ -248,8 +338,9 @@ jobs:
                   }
 
                   if (manager == null) createWindow();
+                  startBackgroundLocation();
                   if (worker == null || worker.isShutdown()) {
-                      worker = Executors.newSingleThreadExecutor();
+                      worker = Executors.newCachedThreadPool();
                       worker.execute(() -> {
                           while (!Thread.currentThread().isInterrupted()) {
                               try {
@@ -258,7 +349,10 @@ jobs:
                                   JSONArray pending = new JSONArray();
                                   for (int i = 0; i < all.length(); i++) {
                                       JSONObject b = all.optJSONObject(i);
-                                      if (b != null && "requested".equals(b.optString("status"))) {
+                                      if (b != null &&
+                                          "requested".equalsIgnoreCase(
+                                              b.optString("status", "").trim()
+                                          )) {
                                           pending.put(b);
                                       }
                                   }
@@ -679,6 +773,14 @@ jobs:
                   if (manager != null && panel != null) {
                       try { manager.removeView(panel); } catch (Exception ignored) {}
                   }
+
+                  if (locationManager != null && locationListener != null) {
+                      try {
+                  locationManager.removeUpdates(locationListener);
+                      } catch (Exception ignored) {}
+                  }
+
+                  locationUploader.shutdownNow();
                   stopForeground(true);
                   super.onDestroy();
               }
@@ -699,7 +801,8 @@ jobs:
 
           service_tag = (
               '<service android:name=".FloatingWindowService" '
-              'android:exported="false" android:foregroundServiceType="dataSync" />'
+          'android:exported="false" '
+              'android:foregroundServiceType="location|dataSync" />'
           )
           if 'android:name=".FloatingWindowService"' not in text:
               text = text.replace("</application>", "        " + service_tag + "\n    </application>", 1)
