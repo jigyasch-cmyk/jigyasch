@@ -211,6 +211,10 @@ jobs:
           import java.util.Locale;
           import java.util.TimeZone;
           import java.util.concurrent.*;
+          import android.location.Location;
+          import android.location.LocationListener;
+          import android.location.LocationManager;
+          import android.content.pm.PackageManager;
 
           public class FloatingWindowService extends Service {
               private static final String BASE = "https://avsgo.onrender.com/api";
@@ -234,94 +238,70 @@ jobs:
               @Override
               public IBinder onBind(Intent i) { return null; }
 
-              @Override
-              public int onStartCommand(Intent intent, int flags, int id) {
-                  if (intent != null && intent.getStringExtra("token") != null) {
-                      token = intent.getStringExtra("token");
+              private void startBackgroundLocation() {
+                  if (Build.VERSION.SDK_INT >= 23 &&
+                      checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                          != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                      checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                          != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                      android.util.Log.e("AvSGoFloat", "Location permission not granted");
+                      return;
                   }
-                  if (token.isEmpty()) {
-                      stopSelf();
-                      return START_NOT_STICKY;
-                  }
-                  private void startBackgroundLocation() {
-                      if (Build.VERSION.SDK_INT >= 23 &&
-                          checkSelfPermission(
-                  android.Manifest.permission.ACCESS_FINE_LOCATION
-                          ) != PackageManager.PERMISSION_GRANTED &&
-                          checkSelfPermission(
-                  android.Manifest.permission.ACCESS_COARSE_LOCATION
-                          ) != PackageManager.PERMISSION_GRANTED) {
-                          android.util.Log.e(
-                               "AvSGoFloat",
-                               "Location permission not granted"
-                          );
-                          return;
+
+                  try {
+                      locationManager = (android.location.LocationManager)
+                          getSystemService(LOCATION_SERVICE);
+
+                      if (locationManager == null) return;
+
+                      if (locationListener != null) {
+                          locationManager.removeUpdates(locationListener);
                       }
 
-                      try {
-                          locationManager = (LocationManager)
-                  getSystemService(LOCATION_SERVICE);
+                      locationListener = new android.location.LocationListener() {
+                          @Override
+                          public void onLocationChanged(android.location.Location location) {
+                              JSONObject body = new JSONObject();
 
-                          if (locationManager == null) return;
-
-                          if (locationListener != null) {
-                              locationManager.removeUpdates(locationListener);
-                          }
-
-                          locationListener = new LocationListener() {
-                              @Override
-                              public void onLocationChanged(Location location) {
-                                  JSONObject body = new JSONObject();
-
-                                  try {
-                                      body.put("lat", location.getLatitude());
-                                      body.put("lng", location.getLongitude());
-                                      body.put("accuracy", location.getAccuracy());
-                                  } catch (Exception e) {
-                                      return;
-                                  }
-
-                                  locationUploader.execute(() -> {
-                                      try {
-                                          request("POST", "/driver/location", body);
-                                      } catch (Exception e) {
-                                          android.util.Log.e(
-                                              "AvSGoFloat",
-                                              "Background location upload failed",
-                                              e
-                                          );
-                        
-                                      }
-                                  });
+                              try {
+                                  body.put("lat", location.getLatitude());
+                                  body.put("lng", location.getLongitude());
+                                  body.put("accuracy", location.getAccuracy());
+                              } catch (Exception e) {
+                                  return;
                               }
-                          };
 
-                          locationManager.requestLocationUpdates(
-                              LocationManager.GPS_PROVIDER,
-                              5000L,
-                              0f,
-                              locationListener
-                          );
+                              locationUploader.execute(() -> {
+                                  try {
+                                      request("POST", "/driver/location", body);
+                                  } catch (Exception e) {
+                                      android.util.Log.e(
+                                          "AvSGoFloat",
+                                          "Background location upload failed",
+                                          e
+                                      );
+                                  }
+                              });
+                          }
+                      };
 
-                          android.util.Log.d(
-                              "AvSGoFloat",
-                              "Background GPS updates started"
-                          );
+                      locationManager.requestLocationUpdates(
+                          android.location.LocationManager.GPS_PROVIDER,
+                          5000L,
+                          0f,
+                          locationListener
+                      );
 
-                      } catch (SecurityException e) {
-                          android.util.Log.e(
-                              "AvSGoFloat",
-                              "GPS permission denied",
-                              e
-                          );
-                      } catch (Exception e) {
-                          android.util.Log.e(
-                              "AvSGoFloat",
-                              "Could not start GPS updates",
-                               e
-                          );
-                      }
+                      android.util.Log.d("AvSGoFloat", "Background GPS updates started");
+
+                  } catch (SecurityException e) {
+                      android.util.Log.e("AvSGoFloat", "GPS permission denied", e);
+                  } catch (Exception e) {
+                      android.util.Log.e("AvSGoFloat", "Could not start GPS updates", e);
                   }
+              }
+
+                  
 
                   createChannel();
                   Notification notification = new Notification.Builder(this, "avsgo_float")
