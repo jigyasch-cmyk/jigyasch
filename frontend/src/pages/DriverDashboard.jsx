@@ -468,22 +468,32 @@ function LocationSharingCard({ driverId }) {
     gray: "bg-gray-100 text-gray-700 border-gray-200",
   };
 
+  
   const handleLocationToggle = async () => {
-  if (enabled) {
-    setEnabled(false);
+    if (enabled) {
+      setEnabled(false);
 
-    try {
-      await api.patch(
-        "/driver/online",
-        { available: false },
-        { headers: { "x-role": "driver" } }
-      );
-    } catch (e) {
-      toast.error("Unable to stop location sharing");
+      try {
+        await AvSGoFloatingWindow.stopLocationSharing({
+          token: localStorage.getItem("avsgo_driver_token") || ""
+        });
+      } catch (error) {
+        console.warn("Native GPS stop failed:", error);
+      }
+
+      try {
+        await api.patch(
+          "/driver/online",
+          { available: false },
+          { headers: { "x-role": "driver" } }
+        );
+      } catch (e) {
+        toast.error("Unable to stop location sharing");
+      }
+
+      return;
     }
 
-    return;
-  }
 
   if (!isGeoSupported()) {
     setStatus("unsupported");
@@ -502,6 +512,7 @@ function LocationSharingCard({ driverId }) {
       headers: { "x-role": "driver" },
     });
 
+    
     // Enable driver online status
     await api.patch(
       "/driver/online",
@@ -509,12 +520,25 @@ function LocationSharingCard({ driverId }) {
       { headers: { "x-role": "driver" } }
     );
 
+    // Start native GPS updates for the Floating Window service
+    try {
+      await AvSGoFloatingWindow.startLocationSharing({
+        token: localStorage.getItem("avsgo_driver_token") || ""
+      });
+    } catch (error) {
+      console.warn("Native GPS start failed:", error);
+      toast.error(
+        "Background GPS could not start. Check Android permissions."
+      );
+    }
+
     setLastPos(coords);
     setLastAt(new Date().toISOString());
     setPermState("granted");
     setEnabled(true);
 
     toast.success("Location sharing enabled");
+
   } catch (e) {
     setEnabled(false);
     localStorage.setItem(LOC_KEY, "off");
