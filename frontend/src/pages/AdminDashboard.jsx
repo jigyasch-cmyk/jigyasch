@@ -550,26 +550,27 @@ function FaresView({ fares, onSave, onRefresh }) {
     loadCategories();
   }, []);
 
-  const addCategory = async () => {
+const addCategory = async () => {
   if (!name.trim()) {
     return toast.error("Vehicle category name is required");
-  }
-
-  if (!photo) {
-    return toast.error("Please upload a vehicle photo");
   }
 
   setUploading(true);
 
   try {
-    const fd = new FormData();
-    fd.append("file", photo);
+    let imageId = null;
 
-    const uploaded = await api.post("/upload", fd, hdrs);
-    const imageId = uploaded.data?.id;
+    // Photo দিলে upload কৰিব; নিদিলে category save কৰিব
+    if (photo) {
+      const fd = new FormData();
+      fd.append("file", photo);
 
-    if (!imageId) {
-      throw new Error("Photo upload failed");
+      const uploaded = await api.post("/upload", fd, hdrs);
+      imageId = uploaded.data?.id || null;
+
+      if (!imageId) {
+        throw new Error("Photo upload failed");
+      }
     }
 
     await api.post(
@@ -584,6 +585,7 @@ function FaresView({ fares, onSave, onRefresh }) {
     );
 
     toast.success("Vehicle category added");
+
     setName("");
     setCapacity("");
     setPhoto(null);
