@@ -823,14 +823,37 @@ jobs:
         working-directory: frontend/android
         run: ./gradlew bundleRelease
 
+      - name: Sign Release AAB
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/avsgo-upload.jks"
+
+          jarsigner \
+            -keystore "$RUNNER_TEMP/avsgo-upload.jks" \
+            -storetype PKCS12 \
+            -storepass:env KEYSTORE_PASSWORD \
+            -keypass:env KEY_PASSWORD \
+            -sigalg SHA256withRSA \
+            -digestalg SHA-256 \
+            -signedjar "$RUNNER_TEMP/AvSGo-release-signed.aab" \
+            frontend/android/app/build/outputs/bundle/release/app-release.aab \
+            "$KEY_ALIAS"
+
+          jarsigner -verify "$RUNNER_TEMP/AvSGo-release-signed.aab"
+
       - name: Upload APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: AvSGo-APK
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload AAB
+      - name: Upload Signed AAB
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: AvSGo-AAB
-          path: frontend/android/app/build/outputs/bundle/release/*.aab
+          name: AvSGo-Signed-AAB
+          path: ${{ runner.temp }}/AvSGo-release-signed.aab
