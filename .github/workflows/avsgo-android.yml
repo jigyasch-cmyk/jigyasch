@@ -35,9 +35,35 @@ jobs:
         working-directory: frontend
         run: npx --yes @capacitor/cli@7.4.3 add android
 
-      - name: Sync Capacitor
-        working-directory: frontend
-        run: npx --yes @capacitor/cli@7.4.3 sync android
+      - name: Set Android Minimum SDK 24
+        working-directory: frontend/android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          files = [
+              Path("variables.gradle"),
+              Path("app/build.gradle"),
+          ]
+
+          changed = False
+          for file in files:
+              if file.exists():
+                  text = file.read_text()
+                  new_text, count = re.subn(
+                      r'(\bminSdkVersion\s*[= ]\s*)23\b',
+                      r'\g<1>24',
+                      text
+                  )
+                  if count:
+                      file.write_text(new_text)
+                      changed = True
+                      print("Updated:", file)
+
+          if not changed:
+              raise SystemExit("minSdkVersion 23 not found")
+          PY
 
       - name: Add Android Location Permissions
         working-directory: frontend
