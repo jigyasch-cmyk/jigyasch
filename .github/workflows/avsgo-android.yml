@@ -33,8 +33,20 @@ jobs:
 
       - name: Add Capacitor Android
         working-directory: frontend
-        run: npx --yes @capacitor/cli@7.4.3 add android
-
+        run: npx --yes @capacitor/cli@7.4.3 add android. 
+      - name: Set Android Version Code
+        working-directory: frontend
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("android/app/build.gradle")
+          text = p.read_text()
+          text, count = re.subn(r'versionCode\s+\d+', 'versionCode 2', text, count=1)
+          if count != 1:
+              raise SystemExit("versionCode not found")
+          p.write_text(text)
+          PY
       - name: Set Android SDK Versions
         working-directory: frontend/android
         run: |
