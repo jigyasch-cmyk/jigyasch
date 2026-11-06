@@ -35,34 +35,44 @@ jobs:
         working-directory: frontend
         run: npx --yes @capacitor/cli@7.4.3 add android
 
-      - name: Set Android Minimum SDK 24
+      - name: Set Android SDK Versions
         working-directory: frontend/android
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
 
-          files = [
-              Path("variables.gradle"),
-              Path("app/build.gradle"),
-          ]
+          variables = Path("variables.gradle")
+          if not variables.exists():
+              raise SystemExit("variables.gradle not found")
 
-          changed = False
-          for file in files:
-              if file.exists():
-                  text = file.read_text()
-                  new_text, count = re.subn(
-                      r'(\bminSdkVersion\s*[= ]\s*)23\b',
-                      r'\g<1>24',
-                      text
-                  )
-                  if count:
-                      file.write_text(new_text)
-                      changed = True
-                      print("Updated:", file)
+          text = variables.read_text()
 
-          if not changed:
-              raise SystemExit("minSdkVersion 23 not found")
+          text, min_count = re.subn(
+              r'(\bminSdkVersion\s*=\s*)\d+',
+              r'\g<1>24',
+              text
+          )
+
+          text, compile_count = re.subn(
+              r'(\bcompileSdkVersion\s*=\s*)\d+',
+              r'\g<1>36',
+              text
+          )
+
+          text, target_count = re.subn(
+              r'(\btargetSdkVersion\s*=\s*)\d+',
+              r'\g<1>36',
+              text
+          )
+
+          if not min_count or not compile_count or not target_count:
+              raise SystemExit("Could not update all SDK versions")
+
+          variables.write_text(text)
+          print("Minimum SDK: 24")
+          print("Compile SDK: 36")
+          print("Target SDK: 36")
           PY
 
       - name: Add Android Location Permissions
