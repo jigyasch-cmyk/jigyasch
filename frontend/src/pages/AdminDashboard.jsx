@@ -22,11 +22,12 @@ export default function AdminDashboard() {
   const [fares, setFares] = useState([]);
   const [payments, setPayments] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [deletionRequests, setDeletionRequests] = useState([]);
   const hdrs = { headers: { "x-role": "admin" } };
 
   const load = async () => {
     try {
-      const [s, v, d, b, f, p,c] = await Promise.all([
+      const [s, v, d, b, f, p, c, dr] = await Promise.all([
         api.get("/admin/stats", hdrs),
         api.get("/admin/vehicles", hdrs),
         api.get("/admin/drivers", hdrs),
@@ -34,6 +35,8 @@ export default function AdminDashboard() {
         api.get("/fare-settings"),
         api.get("/admin/commission-payments", hdrs),
         api.get("/admin/customers", hdrs),
+        api.get("/admin/account-deletion-requests", hdrs),
+
       ]);
       setStats(s.data);
       setVehicles(v.data);
@@ -42,6 +45,7 @@ export default function AdminDashboard() {
       setFares(f.data);
       setPayments(p.data);
       setCustomers(c.data);
+      setDeletionRequests(dr.data);
     } catch (e) {
       if (e.response?.status === 401) logout();
     }
@@ -117,6 +121,36 @@ export default function AdminDashboard() {
     }
   };
 
+  
+const reviewDeletionRequest = async (id, action) => {
+  const message = action === "approve"
+    ? "Permanently delete this account?"
+    : "Reject this deletion request?";
+
+  if (!window.confirm(message)) return;
+
+  try {
+    await api.patch(
+      `/admin/account-deletion-requests/${id}`,
+      { action },
+      hdrs
+    );
+
+    toast.success(
+      action === "approve"
+        ? "Account deleted successfully"
+        : "Request rejected"
+    );
+
+    load();
+  } catch (e) {
+    toast.error(
+      e.response?.data?.detail || "Action failed"
+    );
+  }
+};
+  
+
   const saveFare = async (vt, values) => {
     try {
       await api.put(`/admin/fare-settings/${vt}`, values, hdrs);
@@ -168,6 +202,7 @@ export default function AdminDashboard() {
               ["fares", "Fare Settings", Settings2],
               ["managers", "Managers", Users],
               ["manager_payouts", "Manager Payouts", IndianRupee],
+              ["deletion_requests", "Deletion Requests", Users],
               ["payment_settings", "Payment Settings", Wallet],
             ].map(([k, label, Icon]) => (
               <button
@@ -215,7 +250,12 @@ export default function AdminDashboard() {
             />
           )}
           {tab === "managers" && <ManagerAdminView />}
-          {tab === "manager_payouts" && <ManagerPayoutsView />}
+          {tab === "manager_payouts" && <ManagerPayoutsView />}{tab === "deletion_requests" && (
+            <DeletionRequestsView
+              requests={deletionRequests}
+              onReview={reviewDeletionRequest}
+            />
+          )}
           {tab === "payment_settings" && <AdminPaymentSettingsView />}
         </main>
       </div>
@@ -1728,3 +1768,66 @@ function CustomersView({ customers, onRefresh }) {
     </div>
   );
 }
+
+function DeletionRequestsView({ requests, onReview }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="font-display text-3xl font-bold">
+          Account Deletion Requests
+        </h1>
+        <p className="text-sm text-gray-500">
+          Customer and Driver account deletion requests.
+        </p>
+      </div>
+
+      {requests.length === 0 ? (
+        <div className="card">
+          No deletion requests found.
+        </div>
+      ) : (
+        requests.map((r) => (
+          <div key={r.id} className="card space-y-3">
+            <div className="flex justify-between flex-wrap gap-2">
+              <b>{r.name}</b>
+              <span className="text-sm font-semibold">
+                {r.status.toUpperCase()}
+              </span>
+            </div>
+
+            <p className="text-sm">
+              Account: {r.role}
+            </p>
+
+            <p className="text-sm">
+              Mobile: {r.mobile}
+            </p>
+
+            <p className="text-xs text-gray-500">
+              Request ID: {r.id}
+            </p>
+
+            {r.status === "pending" && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onReview(r.id, "approve")}
+                  className="brand-btn flex-1"
+                >
+                  Approve & Delete
+                </button>
+
+                <button
+                  onClick={() => onReview(r.id, "reject")}
+                  className="brand-btn-outline flex-1"
+                >
+                  Reject
+                </button>
+              </div>
+            )}
+          </div>
+        ))
+      )}
+    </div>
+  );
+      }
+
