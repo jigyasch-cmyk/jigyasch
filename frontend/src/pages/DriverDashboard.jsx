@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Plus, Car, Package, IndianRupee, Bell, CheckCircle2, XCircle, Clock, Upload, Navigation, MapPinOff, Wallet } from "lucide-react";
+import { LogOut, Plus, Car, Package, IndianRupee, Bell, CheckCircle2, XCircle, Clock, Upload, Navigation, MapPinOff, Wallet, Mail, } from "lucide-react";
 import { toast } from "sonner";
 import api, { fileUrl, API, wsUrl } from "@/lib/api";
 import { subscribeToPush, pushSupported, pushPermission } from "@/lib/push";
@@ -23,6 +23,35 @@ const AvSGoFloatingWindow =
 
 export default function DriverDashboard() {
   const nav = useNavigate();
+
+  
+const requestAccountDeletion = async () => {
+  if (!window.confirm("Request deletion of your AvSGo driver account?")) return;
+
+  try {
+    const result = await api.post("/account-deletion-requests", {
+      role: "driver",
+      name: driver.name || "Driver",
+      mobile: driver.mobile,
+    });
+
+    const subject = "AvSGo Driver Account Deletion Request";
+    const body =
+      `Request ID: ${result.data.id}\n` +
+      `Name: ${driver.name || "Driver"}\n` +
+      `Mobile: ${driver.mobile}\n` +
+      `Account Type: Driver\n` +
+      "Please review my account deletion request.";
+
+    window.location.href =
+      `mailto:jigyasch@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    toast.success("Deletion request saved");
+  } catch (e) {
+    toast.error(e.response?.data?.detail || "Request failed");
+  }
+};
+  
   const driver = JSON.parse(localStorage.getItem("avsgo_driver") || "{}");
   const [tab, setTab] = useState("bookings");
   const [vehicles, setVehicles] = useState([]);
@@ -169,6 +198,17 @@ try {
           </button>
         </div>
       </div>
+      
+<div className="px-4 py-3">
+  <button
+    onClick={requestAccountDeletion}
+    className="w-full rounded-xl border border-rose-300 bg-rose-50 text-rose-700 p-3 font-semibold flex items-center justify-center gap-2"
+  >
+    <Mail className="h-5 w-5" />
+    Request Account Deletion
+  </button>
+</div>
+      
 
       <PushBanner subscriberKey={driver.id ? `driver:${driver.id}` : null} role="driver" />
       <LocationSharingCard driverId={driver.id} />
