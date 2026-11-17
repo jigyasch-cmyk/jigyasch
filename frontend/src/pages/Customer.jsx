@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Phone, User, IndianRupee, CheckCircle2, Clock, PhoneCall,
   XCircle, Navigation, Route as RouteIcon, Loader2, LocateFixed, Circle,
-  Flag, Hash, X, ChevronRight, Bell,
+  Flag, Hash, X, ChevronRight, Bell, Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import api, { wsUrl, fileUrl } from "@/lib/api";
@@ -22,6 +22,35 @@ const VEHICLE_META = {
 
 export default function Customer() {
   const nav = useNavigate();
+
+  
+const requestAccountDeletion = async () => {
+  if (!window.confirm("Request deletion of your AvSGo account?")) return;
+
+  try {
+    const result = await api.post("/account-deletion-requests", {
+      role: "customer",
+      name: form.name,
+      mobile: form.mobile,
+    });
+
+    const subject = "AvSGo Customer Account Deletion Request";
+    const body =
+      `Request ID: ${result.data.id}\n` +
+      `Name: ${form.name}\n` +
+      `Mobile: ${form.mobile}\n` +
+      `Account Type: Customer\n` +
+      "Please review my account deletion request.";
+
+    window.location.href =
+      `mailto:jigyasch@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    toast.success("Deletion request saved");
+  } catch (e) {
+    toast.error(e.response?.data?.detail || "Request failed");
+  }
+};
+  
   // Flow: pickup/drop -> category -> fare/confirm -> booking status/live tracking.
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({ name: "", mobile: "" });
@@ -617,6 +646,21 @@ if (now - reverseGeocodeRef.current.lastTime >= 30000) {
     Complaint Box
   </button>
 </div>
+
+
+<div className="px-4 py-3">
+  <button
+    onClick={requestAccountDeletion}
+    className="w-full rounded-xl border border-rose-300 bg-rose-50 text-rose-700 p-3 font-semibold flex items-center justify-center gap-2"
+  >
+    <Mail className="h-5 w-5" />
+    Request Account Deletion
+  </button>
+</div>
+      
+
+
+      
 
 {featureLoading && (
   <p className="p-4 text-sm text-gray-500">Loading…</p>
