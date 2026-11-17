@@ -293,6 +293,18 @@ class CustomerRewardsUpdate(BaseModel):
     discount_amount: float = Field(default=0, ge=0)
 
 
+class AccountDeletionRequestIn(BaseModel):
+    role: Literal["customer", "driver"]
+    name: str
+    mobile: str
+
+
+class AccountDeletionReviewIn(BaseModel):
+    action: Literal["approve", "reject"]
+    note: Optional[str] = None
+    
+
+
 class AdminRegister(BaseModel):
     name: str
     mobile: str
@@ -797,6 +809,105 @@ async def admin_list_customers(_=Depends(require_admin)):
         customer.setdefault("discount_eligible", False)
 
     return customers
+
+
+# ---- Account Deletion Requests ----
+
+@api_router.post("/account-deletion-requests")
+async def create_account_deletion_request(payload: AccountDeletionRequestIn):
+    mobile = payload.mobile.strip()
+    name = payload.name.strip()
+
+    if len(mobile) != 10 or not mobile.isdigit():
+        raise HTTPException(400, "Invalid mobile number")
+
+    if not name:
+        raise HTTPException(400, "Name is required")
+
+    collection = db.customers if payload.role == "customer" else db.drivers
+    account = await collection.find_one({"mobile": mobile})
+
+    if not account:
+        raise HTTPException(404, "Account not found")
+
+    existing = await db.account_deletion_requests.find_one({
+        "role": payload.role,
+        "mobile": mobile,
+        "status": "pending"
+    })
+
+    if existing:
+        return {"message": "Request already submitted", "id": existing["id"]}
+
+    request_doc = {
+        "id": str(uuid.uuid4()),
+        "role": payload.role,
+        "name": account.get("name", name),
+        "mobile": mobile,
+        "status": "pending",
+        "created_at": now_iso()
+    }
+
+    await db.account_deletion_requests.insert_one(request_doc)
+
+    return {
+        "message": "Account deletion request submitted",
+        "id": request_doc["id"]
+    }
+
+
+@api_router.get("/admin/account-deletion-requests")
+async def admin_account_deletion_requests(_=Depends(require_admin)):
+    return await db.account_deletion_requests.find(
+        {}, {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+
+
+@api_router.patch("/admin/account-deletion-requests/{request_id}")
+async def review_account_deletion_request(
+    request_id: str,
+    payload: AccountDeletionReviewIn,
+    _=Depends(require_admin)
+):
+    request = await db.account_deletion_requests.find_one({
+        "id": request_id,
+        "status": "pending"
+    })
+
+    if not request:
+        raise HTTPException(404, "Pending request not found")
+
+    if payload.action == "approve":
+        if request["role"] == "customer":
+            await db.customers.delete_one({
+                "mobile": request["mobile"]
+            })
+        else:
+            driver = await db.drivers.find_one({
+                "mobile": request["mobile"]
+            })
+
+            if driver:
+                await db.drivers.delete_one({
+                    "id": driver["id"]
+                })
+
+                await db.vehicles.update_many(
+                    {"driver_id": driver["id"]},
+                    {"$set": {"available": False}}
+                )
+
+    await db.account_deletion_requests.update_one(
+        {"id": request_id},
+        {"$set": {
+            "status": "approved" if payload.action == "approve" else "rejected",
+            "admin_note": payload.note or "",
+            "reviewed_at": now_iso()
+        }}
+    )
+
+    return {"message": "Request reviewed successfully"}
+
 
 
 @api_router.patch("/admin/customers/{mobile}/rewards")
