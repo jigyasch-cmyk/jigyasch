@@ -89,7 +89,12 @@ useEffect(() => {
       setNotifs(n.data);
       setCommission(c.data);
     } catch (e) {
-      if (e.response?.status === 401) logout();
+      if (
+        e.response?.status === 401 ||
+        e.response?.status === 403
+      ) {
+        logout();
+      }
     }
   };
 
@@ -133,19 +138,17 @@ const logout = async () => {
       { available: false },
       authHeaders
     );
-  } catch (e) {
-    // Ignore offline update error
-  }
+  } catch (e) {}
 
-try {
+  localStorage.removeItem("avsgo_driver");
+  localStorage.removeItem("avsgo_driver_token");
+
+  try {
     await AvSGoFloatingWindow.stop();
-  } catch (e) {
-    // Ignore if the floating window is already stopped.
-  }
+  } catch (e) {}
 
   nav("/");
 };
-
   const actBooking = async (id, action) => {
     try {
       await api.patch(`/driver/bookings/${id}`, { action }, authHeaders);
