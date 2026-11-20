@@ -180,8 +180,46 @@ getCurrentPosition()
         setVehicleCategories(data.filter((c) => c && c.enabled !== false && c.name));
       })
       .catch(() => toast.error("Vehicle categories could not be loaded"))
-      .finally(() => setCategoriesLoading(false));
+      .finally(() => setCategoriesLoading(
   }, []);
+
+  // Automatically detect when Admin deletes this customer account.
+  useEffect(() => {
+    const saved = JSON.parse(
+      localStorage.getItem("avsgo_customer_profile") || "null"
+    );
+
+    if (!saved?.mobile) return;
+
+    let checking = false;
+
+    const checkAccount = async () => {
+      if (checking) return;
+      checking = true;
+
+      try {
+        await api.get(
+          `/customer/rewards/${encodeURIComponent(saved.mobile)}`
+        );
+      } catch (e) {
+        if (e.response?.status === 404) {
+          localStorage.removeItem("avsgo_customer_profile");
+          setForm({ name: "", mobile: "" });
+          setOnboardingDone(false);
+          toast.error("Your AvSGo account has been deleted. Please register again.");
+        }
+      } finally {
+        checking = false;
+      }
+    };
+
+    checkAccount();
+    const timer = setInterval(checkAccount, 10000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  
 
   const resolvePincode = async (pin) => {
     setPinBusy(true);
