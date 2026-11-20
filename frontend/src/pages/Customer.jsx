@@ -173,14 +173,17 @@ getCurrentPosition()
     );
   });
 
-    api.get("/fare-settings").then((r) => setFares(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    api.get("/fare-settings")
+      .then((r) => setFares(Array.isArray(r.data) ? r.data : []))
+      .catch(() => {});
+
     api.get("/vehicle-categories")
       .then((r) => {
         const data = Array.isArray(r.data) ? r.data : [];
         setVehicleCategories(data.filter((c) => c && c.enabled !== false && c.name));
       })
       .catch(() => toast.error("Vehicle categories could not be loaded"))
-      .finally(() => setCategoriesLoading(
+      .finally(() => setCategoriesLoading(false));
   }, []);
 
   // Automatically detect when Admin deletes this customer account.
