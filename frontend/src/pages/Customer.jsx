@@ -173,7 +173,7 @@ getCurrentPosition()
     );
   });
 
-          api.get("/fare-settings").then((r) => setFares(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    api.get("/fare-settings").then((r) => setFares(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     api.get("/vehicle-categories")
       .then((r) => {
         const data = Array.isArray(r.data) ? r.data : [];
