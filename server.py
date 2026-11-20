@@ -3320,12 +3320,40 @@ async def resolve_pincode(pincode: str):
         raise HTTPException(400, 'Enter a valid 6-digit Indian PIN code')
 
     # AvSGo service availability is controlled only by Admin-enabled Pickup PINs.
-    service_area = await db.service_areas.find_one({'pickup_pin': pincode, 'enabled': True}, {'_id': 0})
+    service_area = await db.service_areas.find_one(
+        {'pickup_pin': pincode, 'enabled': True}, {'_id': 0}
+    )
     if not service_area:
         raise HTTPException(403, 'AvSGo service is not available for this Pickup PIN')
 
-    now = time.time()
-    cached = _PIN_CACHE.get(pincode)
+    # Fast response: Admin-enabled PIN is enough; map coordinates are optional.
+    lat = service_area.get('latitude')
+    lng = service_area.get('longitude')
+
+    bbox = None
+    if lat is not None and lng is not None:
+        lat = float(lat)
+        lng = float(lng)
+        bbox = {
+            'south': lat - 0.045,
+            'north': lat + 0.045,
+            'west': lng - 0.045,
+            'east': lng + 0.045
+        }
+
+    resp = {
+        'pincode': pincode,
+        'display_name': service_area.get('area_name') or f'PIN {pincode}',
+        'lat': lat,
+        'lng': lng,
+        'bbox': bbox,
+        'address': {},
+        'postal_data': None,
+        'source': 'admin_service_area'
+    }
+
+    _PIN_CACHE[pincode] = (time.time() + _PIN_CACHE_TTL_OK, resp)
+    return resp
     if cached and cached[0] > now:
         if isinstance(cached[1], HTTPException):
             raise cached[1]
