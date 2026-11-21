@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Header, Query, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response
+from fastapi.responses import Response, HTMLResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -268,6 +268,156 @@ async def send_push(subscriber_key: str, title: str, body: str, data: Optional[d
 
 # ---------------- App ----------------
 app = FastAPI(title="AvSGo API")
+
+@app.get("/delete-account", response_class=HTMLResponse)
+async def public_delete_account_page():
+    return HTMLResponse("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AvSGo Account Deletion</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f5f7f6;
+  margin: 0;
+  padding: 20px;
+}
+.container {
+  max-width: 500px;
+  margin: 30px auto;
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 3px 15px #0001;
+}
+h1 { color: #087f5b; }
+input, select, button {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px;
+  margin: 10px 0;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 16px;
+}
+button {
+  background: #087f5b;
+  color: white;
+  border: 0;
+  font-weight: bold;
+}
+.notice {
+  background: #f1f8f5;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+#message { margin-top: 15px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>AvSGo Account Deletion</h1>
+  <p>
+    Use this page to request deletion of your AvSGo
+    Customer or Driver account.
+  </p>
+
+  <form id="deleteForm">
+    <label>Account type</label>
+    <select id="role" required>
+      <option value="customer">Customer</option>
+      <option value="driver">Driver</option>
+    </select>
+
+    <label>Full name</label>
+    <input id="name" type="text"
+      placeholder="Enter your registered name" required>
+
+    <label>Registered mobile number</label>
+    <input id="mobile" type="tel"
+      inputmode="numeric" maxlength="10"
+      pattern="[0-9]{10}"
+      placeholder="10-digit mobile number" required>
+
+    <button type="submit">Request Account Deletion</button>
+  </form>
+
+  <div id="message"></div>
+
+  <h3>What happens next?</h3>
+  <p>
+    Your request will be sent to AvSGo for review.
+    After approval, your account profile will be deleted.
+  </p>
+
+  <div class="notice">
+    Account deletion requests are reviewed by AvSGo.
+    Related booking, payment or transaction records may
+    be retained where required for legal, accounting,
+    safety or dispute-resolution purposes.
+  </div>
+
+  <p>
+    If you need help, contact:
+    <a href="mailto:jigyasch@gmail.com">
+      jigyasch@gmail.com
+    </a>
+  </p>
+</div>
+
+<script>
+document.getElementById("deleteForm").addEventListener(
+  "submit", async function(event) {
+    event.preventDefault();
+
+    const message = document.getElementById("message");
+    message.textContent = "Submitting request...";
+
+    const payload = {
+      role: document.getElementById("role").value,
+      name: document.getElementById("name").value.trim(),
+      mobile: document.getElementById("mobile").value.trim()
+    };
+
+    try {
+      const response = await fetch(
+        "/api/account-deletion-requests",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        message.textContent =
+          result.detail || "Unable to submit request.";
+        return;
+      }
+
+      message.textContent =
+        "Your account deletion request has been submitted.";
+      document.getElementById("deleteForm").reset();
+
+    } catch (error) {
+      message.textContent =
+        "Connection error. Please try again.";
+    }
+  }
+);
+</script>
+</body>
+</html>
+""")
+
 api_router = APIRouter(prefix="/api")
 
 
