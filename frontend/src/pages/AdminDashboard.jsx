@@ -26,26 +26,37 @@ export default function AdminDashboard() {
   const hdrs = { headers: { "x-role": "admin" } };
 
   const load = async () => {
-    try {
-      const [s, v, d, b, f, p, c, dr] = await Promise.all([
-        api.get("/admin/stats", hdrs),
-        api.get("/admin/vehicles", hdrs),
-        api.get("/admin/drivers", hdrs),
-        api.get("/admin/bookings", hdrs),
-        api.get("/fare-settings"),
-        api.get("/admin/commission-payments", hdrs),
-        api.get("/admin/customers", hdrs),
-        api.get("/admin/account-deletion-requests", hdrs),
+  try {
+    // Customer list পৃথককৈ load কৰিব
+    api.get("/admin/customers", hdrs)
+      .then((c) => {
+        setCustomers(Array.isArray(c.data) ? c.data : []);
+      })
+      .catch((e) => {
+        console.error("Customer list load failed:", e);
+      });
 
-      ]);
-      setStats(s.data);
-      setVehicles(v.data);
-      setDrivers(d.data);
-      setBookings(b.data);
-      setFares(f.data);
-      setPayments(p.data);
-      setCustomers(c.data);
-      setDeletionRequests(dr.data);
+    const [s, v, d, b, f, p, dr] = await Promise.all([
+      api.get("/admin/stats", hdrs),
+      api.get("/admin/vehicles", hdrs),
+      api.get("/admin/drivers", hdrs),
+      api.get("/admin/bookings", hdrs),
+      api.get("/fare-settings"),
+      api.get("/admin/commission-payments", hdrs),
+      api.get("/admin/account-deletion-requests", hdrs),
+    ]);
+
+    setStats(s.data);
+    setVehicles(v.data);
+    setDrivers(d.data);
+    setBookings(b.data);
+    setFares(f.data);
+    setPayments(p.data);
+    setDeletionRequests(dr.data);
+  } catch (e) {
+    if (e.response?.status === 401) logout();
+  }
+};
     } catch (e) {
       if (e.response?.status === 401) logout();
     }
