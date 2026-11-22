@@ -922,11 +922,15 @@ async def root():
 async def customer_register(payload: CustomerRegister):
     mobile = payload.mobile.strip()
     name = payload.name.strip()
+
     if len(mobile) != 10 or not mobile.isdigit():
         raise HTTPException(400, 'Enter a valid 10-digit mobile number')
+
     if not name:
         raise HTTPException(400, 'Customer name is required')
+
     area = await validate_pickup_pin(payload.pickup_pin)
+
     doc = {
         'name': name,
         'mobile': mobile,
@@ -934,8 +938,36 @@ async def customer_register(payload: CustomerRegister):
         'active': True,
         'updated_at': now_iso(),
     }
-    await db.customers.update_one({'mobile': mobile}, {'$set': doc, '$setOnInsert': {'id': str(uuid.uuid4()), 'created_at': now_iso()}}, upsert=True)
-    saved = await db.customers.find_one({'mobile': mobile}, {'_id': 0})
+
+    result = await db.customers.update_one(
+        {'mobile': mobile},
+        {
+            '$set': doc,
+            '$setOnInsert': {
+                'id': str(uuid.uuid4()),
+                'created_at': now_iso()
+            }
+        },
+        upsert=True
+    )
+
+    saved = await db.customers.find_one(
+        {'mobile': mobile},
+        {'_id': 0}
+    )
+
+    # Notify Admin only when a NEW customer is registered.
+    if result.upserted_id is not None:
+        await send_push(
+            'admin',
+            'New Customer Registered',
+            f"{name} ({mobile}) registered on AvSGo.",
+            {
+                'url': '/admin',
+                'type': 'customer_registered'
+            }
+        )
+
     return saved
 
 
