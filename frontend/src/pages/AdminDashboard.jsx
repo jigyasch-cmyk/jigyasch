@@ -57,10 +57,7 @@ export default function AdminDashboard() {
     if (e.response?.status === 401) logout();
   }
 };
-    } catch (e) {
-      if (e.response?.status === 401) logout();
-    }
-  };
+
 
   useEffect(() => {
     load();
