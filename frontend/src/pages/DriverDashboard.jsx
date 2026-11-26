@@ -88,15 +88,18 @@ useEffect(() => {
       setBookings(b.data);
       setNotifs(n.data);
       setCommission(c.data);
-    } catch (e) {
-      if (
-        e.response?.status === 401 ||
-        e.response?.status === 403
-      ) {
-        logout();
-      }
-    }
-  };
+} catch (e) {
+  if (e.response?.status === 403) {
+    toast.error(
+      e.response?.data?.detail ||
+      "Driver account is inactive. Contact Admin."
+    );
+  } else if (e.response?.status === 401) {
+    toast.error(
+      "Driver session expired. Please try again."
+    );
+  }
+}
 
   useEffect(() => {
     load();
