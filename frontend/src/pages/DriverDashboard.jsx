@@ -100,7 +100,7 @@ useEffect(() => {
     );
   }
 }
-
+};
   useEffect(() => {
     load();
     const t = setInterval(load, 5000);
