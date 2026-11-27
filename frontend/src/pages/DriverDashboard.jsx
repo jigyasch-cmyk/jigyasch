@@ -143,8 +143,7 @@ const logout = async () => {
     );
   } catch (e) {}
 
-  localStorage.removeItem("avsgo_driver");
-  localStorage.removeItem("avsgo_driver_token");
+  // Keep driver registration and token saved
 
   try {
     await AvSGoFloatingWindow.stop();
