@@ -42,7 +42,7 @@ jobs:
           import re
           p = Path("android/app/build.gradle")
           text = p.read_text()
-          text, count = re.subn(r'versionCode\s+\d+', 'versionCode 4', text, count=1)
+          text, count = re.subn(r'versionCode\s+\d+', 'versionCode 5', text, count=1)
           if count != 1:
               raise SystemExit("versionCode not found")
           p.write_text(text)
